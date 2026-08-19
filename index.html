@@ -1,0 +1,2650 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>音乐可视化</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><text y='19' font-size='19'>🎵</text></svg>">
+<style>
+:root{
+  --accent:#a855f7;
+  --accent2:#f0abfc;
+  --panel:rgba(13,12,24,.60);
+  --border:rgba(255,255,255,.09);
+}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+html,body{width:100%;height:100%;overflow:hidden;}
+body{
+  background:#050308;color:#eceaf6;
+  font-family:"Microsoft YaHei","PingFang SC","Segoe UI",system-ui,sans-serif;
+  user-select:none;
+}
+#viz{position:fixed;inset:0;width:100vw;height:100vh;display:block;cursor:pointer;z-index:2;}
+/* ---------- 背景图层（画布之下） ---------- */
+#bg-layer{
+  position:fixed;inset:0;z-index:0;display:none;
+  background-size:cover;background-position:center;background-repeat:no-repeat;
+}
+#bg-layer.on{display:block;}
+#bg-dim{position:fixed;inset:0;z-index:1;display:none;background:rgba(5,3,10,.42);}
+#bg-dim.on{display:block;}
+
+button{font-family:inherit;color:inherit;background:none;border:none;cursor:pointer;}
+.icon-btn{
+  width:40px;height:40px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+  color:#cfcbe4;transition:background .18s,color .18s,transform .12s;
+}
+.icon-btn:hover{background:rgba(255,255,255,.09);color:#fff;}
+.icon-btn:active{transform:scale(.92);}
+.icon-btn svg{width:20px;height:20px;fill:currentColor;}
+
+/* ---------- 顶部栏 ---------- */
+#topbar{
+  position:fixed;top:0;left:0;right:0;z-index:20;
+  display:flex;align-items:flex-start;justify-content:space-between;gap:12px;
+  padding:14px 18px;pointer-events:none;
+}
+#topbar>*{pointer-events:auto;}
+#song-info{
+  max-width:42vw;padding:9px 16px;
+  background:var(--panel);border:1px solid var(--border);border-radius:12px;
+  backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
+}
+#song-title{
+  font-size:15px;font-weight:600;max-width:36vw;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+#song-sub{font-size:11px;color:#9b96b8;margin-top:2px;}
+#modes{
+  display:flex;gap:4px;padding:5px;
+  background:var(--panel);border:1px solid var(--border);border-radius:12px;
+  backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
+}
+.mode-btn{
+  padding:7px 12px;border-radius:8px;font-size:13px;color:#a8a3c4;
+  transition:all .18s;display:flex;align-items:baseline;
+}
+.mode-btn:hover{color:#fff;background:rgba(255,255,255,.07);}
+.mode-btn.active{
+  color:#fff;background:linear-gradient(135deg,var(--accent),var(--accent2));
+  box-shadow:0 0 14px -3px var(--accent);
+}
+.m-num{font-size:10px;opacity:.6;margin-left:4px;}
+
+/* ---------- 播放列表 ---------- */
+#playlist{
+  position:fixed;top:72px;right:18px;bottom:118px;width:290px;z-index:25;
+  background:var(--panel);border:1px solid var(--border);border-radius:16px;
+  backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);
+  display:flex;flex-direction:column;
+  transform:translateX(330px);opacity:0;pointer-events:none;
+  transition:transform .28s cubic-bezier(.2,.8,.2,1),opacity .28s;
+}
+#playlist.open{transform:none;opacity:1;pointer-events:auto;}
+.pl-head{
+  padding:14px 16px;font-size:13px;font-weight:600;color:#cfcbe4;
+  border-bottom:1px solid var(--border);
+  display:flex;justify-content:space-between;align-items:center;
+}
+#pl-count{color:#8b86a8;font-weight:400;font-size:12px;}
+#pl-list{flex:1;overflow-y:auto;padding:8px;}
+#pl-list::-webkit-scrollbar{width:6px;}
+#pl-list::-webkit-scrollbar-thumb{background:rgba(255,255,255,.15);border-radius:3px;}
+.pl-empty{padding:24px 12px;text-align:center;font-size:12px;color:#8b86a8;}
+.pl-item{
+  display:flex;align-items:center;gap:10px;
+  padding:9px 12px;border-radius:9px;font-size:13px;color:#b6b1d2;
+  cursor:pointer;transition:background .15s,color .15s;
+}
+.pl-item:hover{background:rgba(255,255,255,.06);color:#fff;}
+.pl-item.active{background:rgba(255,255,255,.10);color:#fff;box-shadow:inset 2px 0 0 var(--accent);}
+.pl-name{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.pl-eq{display:none;width:14px;height:13px;align-items:flex-end;gap:2px;flex:none;}
+.pl-item.active .pl-eq{display:flex;}
+.pl-eq i{
+  width:3px;border-radius:1px;transform-origin:bottom;
+  background:linear-gradient(180deg,var(--accent2),var(--accent));
+  animation:eq .9s ease-in-out infinite;
+}
+.pl-eq i:nth-child(1){height:60%;animation-delay:-.3s;}
+.pl-eq i:nth-child(2){height:100%;animation-delay:-.6s;}
+.pl-eq i:nth-child(3){height:40%;}
+body:not(.playing) .pl-eq i{animation-play-state:paused;}
+@keyframes eq{0%,100%{transform:scaleY(.35)}50%{transform:scaleY(1)}}
+
+/* ---------- 底部控制栏 ---------- */
+#controls{
+  position:fixed;left:50%;bottom:18px;transform:translateX(-50%);z-index:20;
+  width:min(860px,calc(100vw - 24px));
+  padding:12px 18px 10px;
+  background:var(--panel);border:1px solid var(--border);border-radius:16px;
+  backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);
+}
+#progress{display:flex;align-items:center;gap:10px;font-size:11px;color:#9b96b8;font-variant-numeric:tabular-nums;}
+#p-track{position:relative;flex:1;height:16px;display:flex;align-items:center;cursor:pointer;touch-action:none;}
+#p-track::before{content:'';position:absolute;left:0;right:0;height:5px;border-radius:3px;background:rgba(255,255,255,.12);}
+#p-fill{position:absolute;left:0;height:5px;border-radius:3px;width:0;background:linear-gradient(90deg,var(--accent),var(--accent2));}
+#p-knob{
+  position:absolute;left:0;width:12px;height:12px;border-radius:50%;background:#fff;
+  transform:translateX(-50%) scale(0);transition:transform .15s;box-shadow:0 0 8px var(--accent);
+}
+#p-track:hover #p-knob{transform:translateX(-50%) scale(1);}
+#ctrl-row{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:8px;margin-top:4px;}
+.ctrl-group{display:flex;align-items:center;gap:2px;}
+#ctrl-row>.ctrl-group:first-child{justify-self:start;}
+#ctrl-row>.ctrl-group:nth-child(2){justify-self:center;}
+#ctrl-row>.ctrl-group:last-child{justify-self:end;}
+#btn-play{
+  width:48px;height:48px;color:#fff;margin:0 4px;
+  background:linear-gradient(135deg,var(--accent),var(--accent2));
+  box-shadow:0 4px 18px -4px var(--accent);
+}
+#btn-play:hover{filter:brightness(1.12);background:linear-gradient(135deg,var(--accent),var(--accent2));}
+#btn-play svg{width:22px;height:22px;}
+#vol-wrap,#sens-wrap{display:flex;align-items:center;gap:2px;}
+#vol,#sens{
+  width:84px;height:4px;margin:0 6px;border-radius:2px;outline:none;cursor:pointer;
+  appearance:none;-webkit-appearance:none;background:rgba(255,255,255,.16);
+}
+#sens{width:70px;}
+#vol::-webkit-slider-thumb,#sens::-webkit-slider-thumb{appearance:none;-webkit-appearance:none;width:11px;height:11px;border-radius:50%;background:#fff;cursor:pointer;}
+#vol::-moz-range-thumb,#sens::-moz-range-thumb{width:11px;height:11px;border:none;border-radius:50%;background:#fff;}
+#btn-blogger.on,#btn-preset.on{color:#fff;background:linear-gradient(135deg,var(--accent),var(--accent2));}
+#themes{display:flex;align-items:center;gap:7px;padding:0 8px;}
+.theme-dot{
+  width:17px;height:17px;border-radius:50%;border:2px solid transparent;flex:none;
+  transition:transform .15s,border-color .15s;
+}
+.theme-dot:hover{transform:scale(1.18);}
+.theme-dot.active{border-color:#fff;box-shadow:0 0 10px rgba(255,255,255,.45);}
+
+/* ---------- 初始引导层 ---------- */
+#dropzone{
+  position:fixed;inset:0;z-index:15;
+  display:flex;align-items:center;justify-content:center;cursor:pointer;
+}
+.dz-card{
+  text-align:center;padding:52px 68px;border-radius:24px;
+  background:rgba(10,9,20,.5);border:1px dashed rgba(255,255,255,.18);
+  backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
+  transition:border-color .25s,box-shadow .25s;
+}
+#dropzone:hover .dz-card{border-color:var(--accent);box-shadow:0 0 44px -12px var(--accent);}
+.dz-card svg{width:60px;height:60px;fill:var(--accent);filter:drop-shadow(0 0 12px var(--accent));}
+.dz-card h1{
+  margin:16px 0 8px;font-size:26px;letter-spacing:6px;
+  background:linear-gradient(90deg,var(--accent2),var(--accent),var(--accent2));
+  -webkit-background-clip:text;background-clip:text;color:transparent;
+}
+.dz-main{font-size:15px;color:#d8d4ec;}
+.dz-sub{font-size:12px;color:#8b86a8;margin-top:7px;}
+.dz-keys{font-size:11px;color:#6f6a8d;margin-top:14px;}
+.dz-btn{
+  margin-top:20px;padding:11px 38px;border-radius:999px;font-size:14px;color:#fff;
+  background:linear-gradient(135deg,var(--accent),var(--accent2));
+  box-shadow:0 6px 22px -6px var(--accent);transition:filter .18s,transform .12s;
+}
+.dz-btn:hover{filter:brightness(1.12);}
+.dz-btn:active{transform:scale(.96);}
+
+/* ---------- 拖放高亮 ---------- */
+#drag-active{
+  position:fixed;inset:0;z-index:40;display:none;
+  align-items:center;justify-content:center;
+  background:rgba(5,3,10,.55);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);
+}
+#drag-active.on{display:flex;}
+.da-box{
+  padding:40px 70px;border:2px dashed var(--accent);border-radius:20px;
+  font-size:22px;font-weight:600;color:#fff;background:rgba(10,8,20,.6);
+  box-shadow:0 0 50px -12px var(--accent);
+}
+
+/* ---------- 设置面板（分栏） ---------- */
+#settings-backdrop{
+  position:fixed;inset:0;z-index:55;display:none;
+  background:rgba(5,3,10,.55);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);
+}
+#settings-backdrop.open{display:block;}
+#settings{
+  position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:56;
+  width:min(720px,94vw);max-height:88vh;display:none;
+  background:rgba(13,12,24,.92);border:1px solid var(--border);border-radius:16px;
+  backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);
+  overflow:hidden;
+}
+#settings.open{display:flex;flex-direction:column;}
+#settings .st-head{
+  display:flex;justify-content:space-between;align-items:center;
+  font-size:15px;font-weight:600;padding:16px 20px 12px;flex:none;
+}
+#st-close{width:28px;height:28px;border-radius:50%;color:#9b96b8;font-size:14px;}
+#st-close:hover{background:rgba(255,255,255,.08);color:#fff;}
+#st-body{display:flex;min-height:0;flex:1;}
+#st-nav{
+  flex:none;width:118px;padding:0 10px 16px 12px;overflow-y:auto;
+  border-right:1px solid rgba(255,255,255,.06);
+}
+#st-nav::-webkit-scrollbar{width:4px;}
+#st-nav::-webkit-scrollbar-thumb{background:rgba(255,255,255,.12);border-radius:2px;}
+.st-tab{
+  display:block;width:100%;text-align:left;padding:8px 12px;margin-bottom:2px;
+  border-radius:8px;font-size:13px;color:#a8a3c4;transition:all .15s;
+}
+.st-tab:hover{color:#fff;background:rgba(255,255,255,.06);}
+.st-tab.active{color:#fff;background:linear-gradient(135deg,var(--accent),var(--accent2));}
+#st-content{flex:1;overflow-y:auto;padding:2px 20px 20px;}
+#st-content::-webkit-scrollbar{width:6px;}
+#st-content::-webkit-scrollbar-thumb{background:rgba(255,255,255,.12);border-radius:3px;}
+.st-pane{display:none;}
+.st-pane.active{display:block;}
+.st-pane-title{font-size:12px;letter-spacing:2px;color:var(--accent2);margin:14px 0 4px;}
+.st-row{
+  display:flex;justify-content:space-between;align-items:center;gap:14px;
+  padding:12px 0;border-bottom:1px solid rgba(255,255,255,.06);
+}
+.st-row:last-child{border-bottom:none;}
+.st-label{font-size:13px;color:#d8d4ec;min-width:0;}
+.st-sub{display:block;font-size:11px;color:#8b86a8;margin-top:3px;font-weight:400;}
+.st-btn{
+  padding:7px 14px;border-radius:8px;font-size:12px;color:#d8d4ec;flex:none;
+  background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);transition:all .18s;
+}
+.st-btn:hover{background:rgba(255,255,255,.14);color:#fff;}
+.st-btn.primary{color:#fff;background:linear-gradient(135deg,var(--accent),var(--accent2));border:none;}
+.st-select{
+  padding:6px 10px;border-radius:8px;font-size:12px;color:#e6e2f7;font-family:inherit;
+  background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.14);outline:none;cursor:pointer;
+}
+.st-select:focus{border-color:var(--accent);}
+.st-range{
+  width:110px;height:4px;border-radius:2px;outline:none;cursor:pointer;
+  appearance:none;-webkit-appearance:none;background:rgba(255,255,255,.16);
+}
+.st-range::-webkit-slider-thumb{appearance:none;-webkit-appearance:none;width:11px;height:11px;border-radius:50%;background:#fff;cursor:pointer;}
+.st-range::-moz-range-thumb{width:11px;height:11px;border:none;border-radius:50%;background:#fff;}
+.st-range-val{font-size:11px;color:#9b96b8;width:52px;text-align:right;flex:none;}
+.switch{position:relative;display:inline-block;width:40px;height:22px;flex:none;}
+.switch input{opacity:0;width:0;height:0;}
+.sl{position:absolute;inset:0;border-radius:999px;background:rgba(255,255,255,.18);transition:background .2s;cursor:pointer;}
+.sl::before{content:'';position:absolute;width:16px;height:16px;border-radius:50%;background:#fff;top:3px;left:3px;transition:transform .2s;}
+.switch input:checked + .sl{background:linear-gradient(135deg,var(--accent),var(--accent2));}
+.switch input:checked + .sl::before{transform:translateX(18px);}
+#st-blur{
+  width:110px;height:4px;border-radius:2px;outline:none;cursor:pointer;
+  appearance:none;-webkit-appearance:none;background:rgba(255,255,255,.16);
+}
+#st-blur::-webkit-slider-thumb{appearance:none;-webkit-appearance:none;width:11px;height:11px;border-radius:50%;background:#fff;cursor:pointer;}
+#st-blur::-moz-range-thumb{width:11px;height:11px;border:none;border-radius:50%;background:#fff;}
+#st-blur-val{font-size:11px;color:#9b96b8;width:36px;text-align:right;flex:none;}
+#st-ovs{width:110px;}
+.st-num{
+  width:64px;padding:5px 8px;border-radius:8px;font-size:12px;color:#e6e2f7;font-family:inherit;
+  background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.14);outline:none;cursor:text;
+}
+.st-num:focus{border-color:var(--accent);}
+.st-hint{font-size:11px;color:#8b86a8;line-height:1.7;margin-top:10px;padding-top:10px;border-top:1px dashed rgba(255,255,255,.08);}
+
+/* ---------- 渲染视频对话框 ---------- */
+#render-dialog{
+  position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:58;
+  width:min(500px,94vw);max-height:92vh;overflow-y:auto;
+  padding:20px 22px 16px;
+  background:rgba(13,12,24,.88);border:1px solid var(--border);border-radius:16px;
+  backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);display:none;
+}
+#render-dialog.open{display:block;}
+.rd-grid{display:grid;grid-template-columns:1fr 1fr;gap:0 18px;}
+.rd-grid .st-row.wide{grid-column:1 / -1;}
+.rd-select,.rd-num{
+  padding:6px 10px;border-radius:8px;font-size:12px;color:#e6e2f7;font-family:inherit;
+  background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.14);outline:none;cursor:pointer;
+}
+.rd-select:focus,.rd-num:focus{border-color:var(--accent);}
+.rd-num{width:74px;cursor:text;}
+#rd-note{font-size:11px;color:#8b86a8;margin-top:10px;line-height:1.6;}
+#rd-note b{color:#cfcbe4;font-weight:600;}
+#rd-prog{
+  margin-top:12px;height:5px;border-radius:3px;background:rgba(255,255,255,.12);overflow:hidden;display:none;
+}
+#rd-prog.on{display:block;}
+#rd-prog-fill{height:100%;width:0;background:linear-gradient(90deg,var(--accent),var(--accent2));box-shadow:0 0 8px var(--accent);}
+#rd-status{font-size:12px;color:#d8d4ec;margin-top:8px;display:none;line-height:1.7;}
+#rd-status.on{display:block;}
+#rd-status .ok{color:#4ade80;}
+#rd-status .bad{color:#f87171;}
+.rd-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:14px;}
+
+/* ---------- 提示气泡 ---------- */
+#toast{
+  position:fixed;left:50%;bottom:120px;z-index:50;
+  padding:9px 18px;border-radius:10px;
+  background:rgba(20,18,34,.92);border:1px solid var(--border);
+  font-size:13px;color:#e6e2f7;
+  opacity:0;pointer-events:none;transform:translateX(-50%) translateY(8px);
+  transition:opacity .25s,transform .25s;
+}
+#toast.show{opacity:1;transform:translateX(-50%);}
+
+/* ---------- 博主模式信息卡（录屏） ---------- */
+#blogger-card{
+  position:fixed;left:50%;bottom:34px;transform:translateX(-50%) translateY(14px);z-index:18;
+  width:min(640px,88vw);
+  padding:18px 28px 16px;
+  background:rgba(10,9,20,.55);border:1px solid rgba(255,255,255,.10);border-radius:18px;
+  backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);
+  opacity:0;pointer-events:none;
+  transition:opacity .35s,transform .35s;
+}
+body.blogger.bl-top #blogger-card{opacity:1;transform:translateX(-50%) translateY(0) scale(var(--ov-scale,1));top:34px;bottom:auto;transform-origin:center top;}
+body:not(.blogger).bl-top #blogger-card{top:34px;bottom:auto;transform:translateX(-50%) translateY(-14px) scale(var(--ov-scale,1));transform-origin:center top;}
+body.blogger.bl-dispersed #blogger-card{opacity:0;}
+body.blogger:not(.bl-top) #blogger-card{transform:translateX(-50%) translateY(0) scale(var(--ov-scale,1));transform-origin:center bottom;}
+.bc-label{
+  display:flex;align-items:center;gap:7px;
+  font-size:11px;letter-spacing:3px;color:var(--accent2);margin-bottom:8px;
+}
+.bc-dot{
+  width:7px;height:7px;border-radius:50%;background:var(--accent2);
+  box-shadow:0 0 8px var(--accent2);
+  animation:bcPulse 1.6s ease-in-out infinite;
+}
+body:not(.playing) .bc-dot{animation-play-state:paused;opacity:.45;}
+@keyframes bcPulse{0%,100%{opacity:.35;transform:scale(.8)}50%{opacity:1;transform:scale(1.15)}}
+.bc-title{
+  font-size:24px;font-weight:700;color:#fff;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  text-shadow:0 0 22px var(--accent);margin-bottom:13px;
+}
+.bc-track{height:4px;border-radius:2px;background:rgba(255,255,255,.14);overflow:hidden;}
+.bc-fill{height:100%;width:0;border-radius:2px;background:linear-gradient(90deg,var(--accent),var(--accent2));box-shadow:0 0 8px var(--accent);}
+.bc-times{
+  display:flex;justify-content:space-between;
+  font-size:11px;color:#9b96b8;margin-top:6px;font-variant-numeric:tabular-nums;
+}
+.bc-meta{display:flex;justify-content:space-between;gap:16px;font-size:12px;color:#8b86a8;margin-top:11px;}
+#bc-next{max-width:62%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+
+/* ---------- 博主模式 · 分散式布局（四角 + 顶部进度线） ---------- */
+#blogger-dispersed{position:fixed;inset:0;z-index:18;pointer-events:none;opacity:0;transition:opacity .35s;}
+body.blogger.bl-dispersed #blogger-dispersed{opacity:1;}
+#bd-progress{
+  position:absolute;left:50%;bottom:34px;transform:translateX(-50%) scale(var(--ov-scale,1));transform-origin:bottom center;
+  width:min(860px,72vw);height:16px;display:flex;align-items:center;
+}
+#bd-track{position:relative;width:100%;height:4px;border-radius:2px;background:rgba(255,255,255,.22);}
+#bd-fill{position:absolute;left:0;top:0;bottom:0;width:0;border-radius:2px;background:linear-gradient(90deg,var(--accent),var(--accent2));box-shadow:0 0 10px var(--accent);}
+#bd-knob{
+  position:absolute;top:50%;left:0;width:12px;height:12px;border-radius:50%;background:#fff;
+  transform:translate(-50%,-50%);box-shadow:0 0 8px var(--accent);
+}
+.bd-chip{
+  background:rgba(13,12,24,.55);border:1px solid rgba(255,255,255,.09);border-radius:10px;
+  backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
+}
+#bd-tl{
+  position:absolute;top:20px;left:24px;
+  display:flex;align-items:center;gap:10px;padding:9px 16px;max-width:46vw;
+  transform:scale(var(--ov-scale,1));transform-origin:top left;
+}
+#bd-state{font-size:10px;letter-spacing:2px;color:var(--accent2);white-space:nowrap;}
+#bd-title{
+  font-size:18px;font-weight:700;color:#fff;
+  text-shadow:0 0 16px var(--accent);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  min-width:0;flex:0 1 auto;
+}
+#bd-index{
+  position:absolute;top:24px;right:24px;padding:6px 12px;
+  font-size:12px;color:#cfcbe4;font-variant-numeric:tabular-nums;
+  transform:scale(var(--ov-scale,1));transform-origin:top right;
+}
+#bd-time{
+  position:absolute;bottom:18px;left:24px;padding:6px 12px;
+  font-size:12px;color:#e6e2f7;font-variant-numeric:tabular-nums;
+  transform:scale(var(--ov-scale,1));transform-origin:bottom left;
+}
+#bd-next{
+  position:absolute;bottom:18px;right:24px;padding:6px 12px;
+  font-size:11px;color:#9b96b8;max-width:44vw;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  transform:scale(var(--ov-scale,1));transform-origin:bottom right;
+}
+
+/* ---------- 沉浸模式（鼠标静止自动隐藏） ---------- */
+#topbar,#controls,#playlist,#dropzone{transition:opacity .4s;}
+body.idle #topbar,body.idle #controls,body.idle #playlist{opacity:0;pointer-events:none;}
+body.idle{cursor:none;}
+body.blogger #topbar,body.blogger #controls,body.blogger #playlist,body.blogger #dropzone{opacity:0;pointer-events:none;}
+
+@media (max-width:680px){
+  #song-info{display:none;}
+  #modes{overflow-x:auto;max-width:62vw;scrollbar-width:none;}
+  #playlist{width:calc(100vw - 36px);}
+  #vol,#sens{display:none;}
+  .dz-card{padding:36px 26px;margin:0 14px;}
+  #blogger-card{padding:14px 20px 12px;}
+  .bc-title{font-size:19px;}
+  body.blogger.bl-top #blogger-card{top:14px;}
+  #bd-tl{top:12px;left:12px;max-width:64vw;padding:7px 12px;}
+  #bd-title{font-size:14px;}
+  #bd-index{top:16px;right:12px;}
+  #bd-time{bottom:12px;left:12px;}
+  #bd-next{display:none;}
+  #bd-progress{bottom:20px;width:86vw;}
+}
+</style>
+</head>
+<body>
+<canvas id="viz"></canvas>
+<div id="bg-layer"></div>
+<div id="bg-dim"></div>
+
+<!-- 初始引导层（无音频时显示） -->
+<div id="dropzone" class="chrome">
+  <div class="dz-card">
+    <svg viewBox="0 0 24 24"><path d="M12 3v10.55A4 4 0 1 0 14 17V7h4V3h-6z"/></svg>
+    <h1>音乐可视化</h1>
+    <p class="dz-main">拖入音频文件，开启可视化</p>
+    <p class="dz-sub">或点击选择文件 · 支持 MP3 / WAV / FLAC / OGG / M4A</p>
+    <p class="dz-keys">空格 播放暂停 · 1-5 切换模式 · B 博主模式 · R 渲染视频 · S 设置 · F 全屏</p>
+    <button id="btn-pick" class="dz-btn">选择文件</button>
+  </div>
+</div>
+
+<!-- 拖放中高亮层 -->
+<div id="drag-active"><div class="da-box">松手应用（音频 / 图片）</div></div>
+
+<!-- 顶部栏：曲名 + 模式切换 -->
+<header id="topbar" class="chrome">
+  <div id="song-info">
+    <div id="song-title">未加载音频</div>
+    <div id="song-sub"></div>
+  </div>
+  <nav id="modes"></nav>
+</header>
+
+<!-- 播放列表侧栏 -->
+<aside id="playlist" class="chrome">
+  <div class="pl-head"><span>播放列表</span><span style="display:flex;align-items:center;gap:10px;"><span id="pl-count"></span><button id="pl-clear" title="清空列表并释放内存" style="color:#8b86a8;font-size:11px;padding:2px 6px;border-radius:5px;">清空</button></span></div>
+  <div id="pl-list"></div>
+</aside>
+
+<!-- 底部控制栏 -->
+<footer id="controls" class="chrome">
+  <div id="progress">
+    <span id="t-cur">0:00</span>
+    <div id="p-track"><div id="p-fill"></div><div id="p-knob"></div></div>
+    <span id="t-dur">0:00</span>
+  </div>
+  <div id="ctrl-row">
+    <div class="ctrl-group">
+      <button id="btn-pl" class="icon-btn" title="播放列表 (L)"></button>
+      <div id="vol-wrap">
+        <button id="btn-vol" class="icon-btn" title="静音"></button>
+        <input id="vol" type="range" min="0" max="1" step="0.01" value="0.85">
+      </div>
+      <div id="sens-wrap">
+        <button id="btn-sens" class="icon-btn" title="灵敏度 ( [ / ] )"></button>
+        <input id="sens" type="range" min="0.4" max="2.5" step="0.05" value="0.75">
+      </div>
+    </div>
+    <div class="ctrl-group">
+      <button id="btn-prev" class="icon-btn" title="上一首"></button>
+      <button id="btn-play" class="icon-btn" title="播放/暂停 (空格)"></button>
+      <button id="btn-next" class="icon-btn" title="下一首"></button>
+    </div>
+    <div class="ctrl-group">
+      <div id="themes"></div>
+      <button id="btn-render" class="icon-btn" title="渲染视频 (R)"></button>
+      <button id="btn-settings" class="icon-btn" title="设置 (S)"></button>
+      <button id="btn-preset" class="icon-btn" title="预设切换 Shift+数字"></button>
+      <button id="btn-blogger" class="icon-btn" title="博主模式 (B)"></button>
+      <button id="btn-fs" class="icon-btn" title="全屏 (F)"></button>
+    </div>
+  </div>
+</footer>
+
+<!-- 博主模式信息卡（录屏用） -->
+<div id="blogger-card">
+  <div class="bc-label"><span class="bc-dot"></span><span id="bc-state">正在播放</span></div>
+  <div class="bc-title" id="bc-title">未加载音频</div>
+  <div class="bc-track"><div class="bc-fill" id="bc-fill"></div></div>
+  <div class="bc-times"><span id="bc-cur">0:00</span><span id="bc-dur">0:00</span></div>
+  <div class="bc-meta"><span id="bc-index"></span><span id="bc-next"></span></div>
+</div>
+
+<!-- 博主模式 · 分散式信息（录屏，四角分布 + 顶部进度线） -->
+<div id="blogger-dispersed">
+  <div id="bd-progress"><div id="bd-track"><div id="bd-fill"></div><div id="bd-knob"></div></div></div>
+  <div id="bd-tl" class="bd-chip">
+    <span class="bc-dot"></span><span id="bd-state">正在播放</span>
+    <span id="bd-title">未加载音频</span>
+  </div>
+  <div id="bd-index" class="bd-chip"></div>
+  <div id="bd-time" class="bd-chip">0:00 / 0:00</div>
+  <div id="bd-next" class="bd-chip"></div>
+</div>
+<!-- 设置面板 -->
+<div id="settings-backdrop"></div>
+<div id="settings">
+  <div class="st-head"><span>设置</span><button id="st-close">✕</button></div>
+  <div id="st-body">
+    <nav id="st-nav">
+      <button class="st-tab active" data-pane="p-bg">外观</button>
+      <button class="st-tab" data-pane="p-viz">可视化</button>
+      <button class="st-tab" data-pane="p-play">播放</button>
+      <button class="st-tab" data-pane="p-exp">导出视频</button>
+      <button class="st-tab" data-pane="p-adv">高级</button>
+    </nav>
+    <div id="st-content">
+
+      <div class="st-pane active" id="p-bg">
+        <div class="st-row">
+          <div class="st-label">背景图片<span class="st-sub">显示在可视化后方，也可直接拖入图片</span></div>
+          <div style="display:flex;gap:8px;flex:none;">
+            <button id="st-bg-pick" class="st-btn primary">选择图片</button>
+            <button id="st-bg-clear" class="st-btn">清除</button>
+          </div>
+        </div>
+        <div class="st-row">
+          <div class="st-label">背景模糊<span class="st-sub">0 为关闭，拖动调节虚化程度</span></div>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <input id="st-blur" type="range" min="0" max="40" step="1" value="26">
+            <span id="st-blur-val">26px</span>
+          </div>
+        </div>
+        <div class="st-row">
+          <div class="st-label">背景压暗<span class="st-sub">叠加暗色遮罩，增强可视化对比度</span></div>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <input id="st-dim" class="st-range" type="range" min="0" max="0.8" step="0.05" value="0.42">
+            <span id="st-dim-val" class="st-range-val">42%</span>
+          </div>
+        </div>
+        <div class="st-row">
+          <div class="st-label">从背景提取主题色<span class="st-sub">自动以背景主色调作为可视化与 UI 配色</span></div>
+          <label class="switch"><input type="checkbox" id="st-extract"><span class="sl"></span></label>
+        </div>
+        <div class="st-row">
+          <div class="st-label">博主信息层大小<span class="st-sub">博主模式与渲染视频中的信息层缩放</span></div>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <input id="st-ovs" class="st-range" type="range" min="0.6" max="1.6" step="0.05" value="1">
+            <span id="st-ovs-val" class="st-range-val">100%</span>
+          </div>
+        </div>
+        <div class="st-row">
+          <div class="st-label">信息层呼吸圆点动画<span class="st-sub">关闭则圆点静止</span></div>
+          <label class="switch"><input type="checkbox" id="st-dot"><span class="sl"></span></label>
+        </div>
+      </div>
+
+      <div class="st-pane" id="p-viz">
+        <div class="st-row">
+          <div class="st-label">视觉预设<span class="st-sub">切换整体渲染风格（也可 Shift+1 快速切换）</span></div>
+          <select id="st-preset" class="st-select">
+            <option value="classic">经典</option>
+            <option value="pro">Pro（高级）</option>
+          </select>
+        </div>        <div class="st-row">
+          <div class="st-label">拖尾残影强度<span class="st-sub">画面运动的拖影长度（0 = 无残影）</span></div>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <input id="st-trail" class="st-range" type="range" min="0" max="0.6" step="0.02" value="0.45">
+            <span id="st-trail-val" class="st-range-val">45%</span>
+          </div>
+        </div>
+        <div class="st-row">
+          <div class="st-label">峰值帽下落速度<span class="st-sub">频谱柱顶端的悬浮小帽</span></div>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <input id="st-peak" class="st-range" type="range" min="0" max="0.02" step="0.002" value="0.005">
+            <span id="st-peak-val" class="st-range-val">0.005</span>
+          </div>
+        </div>
+        <div class="st-row">
+          <div class="st-label">节拍脉冲强度<span class="st-sub">低频节拍触发的整体脉冲幅度</span></div>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <input id="st-beat" class="st-range" type="range" min="0" max="3" step="0.1" value="1">
+            <span id="st-beat-val" class="st-range-val">100%</span>
+          </div>
+        </div>
+        <div class="st-row">
+          <div class="st-label">环形旋转速度<span class="st-sub">环形频谱的自转速度</span></div>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <input id="st-rot" class="st-range" type="range" min="0" max="4" step="0.1" value="1">
+            <span id="st-rot-val" class="st-range-val">100%</span>
+          </div>
+        </div>
+        <div class="st-row">
+          <div class="st-label">粒子数量<span class="st-sub">星云模式的环绕粒子密度</span></div>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <input id="st-orb" class="st-range" type="range" min="60" max="600" step="20" value="240">
+            <span id="st-orb-val" class="st-range-val">240</span>
+          </div>
+        </div>
+        <div class="st-row">
+          <div class="st-label">频谱平滑度<span class="st-sub">频谱随时间的平滑程度（越高越顺滑越迟钝）</span></div>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <input id="st-smooth" class="st-range" type="range" min="0.5" max="0.95" step="0.05" value="0.8">
+            <span id="st-smooth-val" class="st-range-val">0.80</span>
+          </div>
+        </div>
+        <div class="st-row">
+          <div class="st-label">地面反射（频谱模式）<span class="st-sub">柱子下方的倒影</span></div>
+          <label class="switch"><input type="checkbox" id="st-reflect"><span class="sl"></span></label>
+        </div>
+        <div class="st-row">
+          <div class="st-label">标题栏歌名跑马灯<span class="st-sub">超长歌名在浏览器标签标题滚动</span></div>
+          <label class="switch"><input type="checkbox" id="st-marquee"><span class="sl"></span></label>
+        </div>
+      </div>
+
+      <div class="st-pane" id="p-play">
+        <div class="st-row">
+          <div class="st-label">自动隐藏 UI 延时<span class="st-sub">播放中鼠标静止后隐藏界面（0 = 不隐藏）</span></div>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <input id="st-idle" class="st-range" type="range" min="0" max="10" step="0.5" value="3.5">
+            <span id="st-idle-val" class="st-range-val">3.5s</span>
+          </div>
+        </div>
+        <div class="st-row">
+          <div class="st-label">播完自动下一首<span class="st-sub">关闭则播完停止</span></div>
+          <label class="switch"><input type="checkbox" id="st-autonext"><span class="sl"></span></label>
+        </div>
+        <div class="st-row">
+          <div class="st-label">切歌时重置节拍检测<span class="st-sub">避免上一首的节奏统计影响下一首</span></div>
+          <label class="switch"><input type="checkbox" id="st-beatreset"><span class="sl"></span></label>
+        </div>
+        <div class="st-row">
+          <div class="st-label">进度条样式<span class="st-sub">控制栏进度条形态</span></div>
+          <select id="st-barstyle" class="st-select">
+            <option value="knob">条 + 圆钮</option>
+            <option value="plain">纯色条</option>
+          </select>
+        </div>
+        <div class="st-row">
+          <div class="st-label">播放列表自动展开<span class="st-sub">加载音频后自动打开列表面板</span></div>
+          <label class="switch"><input type="checkbox" id="st-autoopen"><span class="sl"></span></label>
+        </div>
+      </div>
+
+      <div class="st-pane" id="p-exp">
+        <div class="st-pane-title">画面</div>
+        <div class="st-row">
+          <div class="st-label">渲染线程让路频率<span class="st-sub">越低越快（UI 进度刷新越少）。渲染卡界面时调高</span></div>
+          <select id="st-yield" class="st-select">
+            <option value="30">快（每30帧让路）</option>
+            <option value="60">标准（每60帧）</option>
+            <option value="8">流畅（每8帧，稍慢）</option>
+          </select>
+        </div>
+        <div class="st-pane-title">视频编码</div>
+        <div class="st-row">
+          <div class="st-label">码率控制模式<span class="st-sub">恒定=严格达标；可变=按画质分配（画面简单时码率低）</span></div>
+          <select id="st-rc" class="st-select">
+            <option value="constant">恒定码率（达标优先）</option>
+            <option value="variable">可变码率（质量优先）</option>
+          </select>
+        </div>
+        <div class="st-row">
+          <div class="st-label">关键帧间隔（GOP）<span class="st-sub">秒。越小拖动越流畅、文件越大</span></div>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <input id="st-gop" class="st-range" type="range" min="0.5" max="10" step="0.5" value="2">
+            <span id="st-gop-val" class="st-range-val">2s</span>
+          </div>
+        </div>
+        <div class="st-row">
+          <div class="st-label">CPU 回退编码速度<span class="st-sub">veryfast 兼容最好；slow 画质最佳但慢数倍</span></div>
+          <select id="st-preset" class="st-select">
+            <option value="ultrafast">ultrafast（最快）</option>
+            <option value="veryfast">veryfast（推荐）</option>
+            <option value="medium">medium（均衡）</option>
+            <option value="slow">slow（高画质）</option>
+          </select>
+        </div>
+        <div class="st-row">
+          <div class="st-label">色彩空间（SDR）<span class="st-sub">8bit 兼容性最好</span></div>
+          <select id="st-chroma" class="st-select">
+            <option value="4:2:0">yuv420p（8bit，全兼容）</option>
+            <option value="4:2:2">yuv422p（8bit，色彩更准）</option>
+          </select>
+        </div>
+        <div class="st-row">
+          <div class="st-label">HDR 导出<span class="st-sub">10bit + PQ 曲线（HDR10）。需显卡支持 AV1/HEVC 10bit 硬编，失败自动回退 SDR。文件更大、部分播放器不支持</span></div>
+          <label class="switch"><input type="checkbox" id="st-hdr"><span class="sl"></span></label>
+        </div>
+        <div class="st-row">
+          <div class="st-label">HDR 峰值亮度<span class="st-sub">nit。SDR 内容映射到 HDR 的亮度上限</span></div>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <input id="st-nits" class="st-range" type="range" min="400" max="2000" step="100" value="800">
+            <span id="st-nits-val" class="st-range-val">800</span>
+          </div>
+        </div>
+        <div class="st-row">
+          <div class="st-label">faststart<span class="st-sub">元数据前置，边下边播；略微增加封装时间</span></div>
+          <label class="switch"><input type="checkbox" id="st-faststart"><span class="sl"></span></label>
+        </div>
+        <div class="st-pane-title">音频</div>
+        <div class="st-row">
+          <div class="st-label">重采样率<span class="st-sub">输出音频采样率</span></div>
+          <select id="st-resample" class="st-select">
+            <option value="48000">48000 Hz（视频标准）</option>
+            <option value="44100">44100 Hz（CD）</option>
+            <option value="0">保持原始</option>
+          </select>
+        </div>
+        <div class="st-row">
+          <div class="st-label">音频声道<span class="st-sub">立体声源可下混单声道（文件更小）</span></div>
+          <select id="st-channels" class="st-select">
+            <option value="0">保持原始</option>
+            <option value="2">立体声</option>
+            <option value="1">单声道</option>
+          </select>
+        </div>
+        <div class="st-hint">提示：导出时渲染对话框中的分辨率/帧率/码率为单次设置（每次导出可变），本页为全局默认行为。HDR 模式下 H.264 会自动切换为 HEVC/AV1（视显卡支持而定）。</div>
+      </div>
+
+      <div class="st-pane" id="p-adv">
+        <div class="st-row">
+          <div class="st-label">日志详细度<span class="st-sub">导出失败时开启可复制 ffmpeg 日志辅助排查</span></div>
+          <select id="st-log" class="st-select">
+            <option value="quiet">安静</option>
+            <option value="error">仅错误</option>
+            <option value="verbose">详细（调试）</option>
+          </select>
+        </div>
+        <div class="st-row">
+          <div class="st-label">缓存图片背景于本地<span class="st-sub">关闭后刷新需重新选择背景图</span></div>
+          <label class="switch"><input type="checkbox" id="st-cachebg"><span class="sl"></span></label>
+        </div>
+        <div class="st-row">
+          <div class="st-label">重置全部设置<span class="st-sub">恢复默认值（含导出、外观、可视化，不含播放列表）</span></div>
+          <button id="st-reset" class="st-btn">重置</button>
+        </div>
+        <div class="st-row">
+          <div class="st-label">快捷键速查<span class="st-sub">空格 播放/暂停 · ←→ 快退/快进 · ↑↓ 音量 · 1-5 模式 · B 博主 · Shift+B 布局 · R 渲染 · S 设置 · F 全屏 · L 列表 · [ ] 灵敏度</span></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+<div id="toast"></div>
+<input id="file-input" type="file" hidden multiple accept="audio/*,.mp3,.wav,.flac,.ogg,.oga,.m4a,.aac,.opus,.webm,.weba">
+<input id="bg-input" type="file" hidden accept="image/*">
+
+<script>
+(function(){
+'use strict';
+
+/* ================= 基础引用 ================= */
+var $ = function(id){ return document.getElementById(id); };
+var canvas = $('viz'), ctx = canvas.getContext('2d');
+var audio = new Audio();
+audio.preload = 'auto';
+
+var body = document.body;
+var dropzone = $('dropzone'), dragActive = $('drag-active');
+var songTitle = $('song-title'), songSub = $('song-sub');
+var modesEl = $('modes'), themesEl = $('themes');
+var playlistEl = $('playlist'), plList = $('pl-list'), plCount = $('pl-count');
+$('pl-clear').addEventListener('click', clearPlaylist);
+var tCur = $('t-cur'), tDur = $('t-dur');
+var pTrack = $('p-track'), pFill = $('p-fill'), pKnob = $('p-knob');
+var btnPlay = $('btn-play'), btnPrev = $('btn-prev'), btnNext = $('btn-next');
+var btnPl = $('btn-pl'), btnVol = $('btn-vol'), btnFs = $('btn-fs');
+var volRange = $('vol'), fileInput = $('file-input');
+var toastEl = $('toast'), btnPick = $('btn-pick');
+var sensRange = $('sens'), btnSens = $('btn-sens'), btnBlogger = $('btn-blogger');
+var bcTitle = $('bc-title'), bcState = $('bc-state'), bcFill = $('bc-fill');
+var bcCur = $('bc-cur'), bcDur = $('bc-dur'), bcIndex = $('bc-index'), bcNext = $('bc-next');
+var bdTitle = $('bd-title'), bdState = $('bd-state'), bdFill = $('bd-fill'), bdKnob = $('bd-knob');
+var bgLayer = $('bg-layer'), bgDim = $('bg-dim');
+var settingsEl = $('settings'), stBackdrop = $('settings-backdrop'), stClose = $('st-close');
+var stBgPick = $('st-bg-pick'), stBgClear = $('st-bg-clear'), stBlur = $('st-blur'), stExtract = $('st-extract');
+var stOvs = $('st-ovs'), stOvsVal = $('st-ovs-val');
+var stDim = $('st-dim'), stDimVal = $('st-dim-val');
+var stTrail = $('st-trail'), stTrailVal = $('st-trail-val');
+var stPeak = $('st-peak'), stPeakVal = $('st-peak-val');
+var stBeat = $('st-beat'), stBeatVal = $('st-beat-val');
+var stRot = $('st-rot'), stRotVal = $('st-rot-val');
+var stOrb = $('st-orb'), stOrbVal = $('st-orb-val');
+var stSmooth = $('st-smooth'), stSmoothVal = $('st-smooth-val');
+var stReflect = $('st-reflect'), stDot = $('st-dot'), stMarquee = $('st-marquee');
+var stIdle = $('st-idle'), stIdleVal = $('st-idle-val');
+var stAutoNext = $('st-autonext'), stBeatReset = $('st-beatreset');
+var stBarStyle = $('st-barstyle'), stAutoOpen = $('st-autoopen');
+var stYield = $('st-yield'), stRc = $('st-rc'), stGop = $('st-gop'), stGopVal = $('st-gop-val');
+var stPreset = $('st-preset'), stChroma = $('st-chroma');
+var stHdr = $('st-hdr'), stNits = $('st-nits'), stNitsVal = $('st-nits-val');
+var stFastStart = $('st-faststart');
+var stResample = $('st-resample'), stChannels = $('st-channels');
+var stLog = $('st-log'), stCacheBg = $('st-cachebg'), stResetBtn = $('st-reset');
+var bgInput = $('bg-input'), btnSettings = $('btn-settings');
+var stBlurVal = $('st-blur-val'), btnRender = $('btn-render');
+var bdTime = $('bd-time'), bdIndex = $('bd-index'), bdNext = $('bd-next');
+
+/* ================= 图标 ================= */
+var ICONS = {
+  play:'<svg viewBox="0 0 24 24"><path d="M8 5.14v13.72L19 12z"/></svg>',
+  pause:'<svg viewBox="0 0 24 24"><path d="M6.5 5h3.4v14H6.5zM14.1 5h3.4v14h-3.4z"/></svg>',
+  prev:'<svg viewBox="0 0 24 24"><path d="M6 5.5h2.4v13H6zM20 6l-9.5 6L20 18z"/></svg>',
+  next:'<svg viewBox="0 0 24 24"><path d="M15.6 5.5H18v13h-2.4zM4 6l9.5 6L4 18z"/></svg>',
+  vol:'<svg viewBox="0 0 24 24"><path d="M4 9.2v5.6h3.6L13 19V5L7.6 9.2H4z"/><path d="M15.5 8.6a4.8 4.8 0 010 6.8l-1.3-1.3a3 3 0 000-4.2z"/><path d="M17.8 6.3a8 8 0 010 11.4l-1.3-1.3a6.2 6.2 0 000-8.8z"/></svg>',
+  mute:'<svg viewBox="0 0 24 24"><path d="M4 9.2v5.6h3.6L13 19V5L7.6 9.2H4z"/><path d="M16.2 9.3l2.1 2.1 2.1-2.1 1.2 1.2-2.1 2.1 2.1 2.1-1.2 1.2-2.1-2.1-2.1 2.1-1.2-1.2 2.1-2.1-2.1-2.1z"/></svg>',
+  fs:'<svg viewBox="0 0 24 24"><path d="M4 9V4h5v2H6v3H4zM15 4h5v5h-2V6h-3V4zM4 15h2v3h3v2H4v-5zM17 15h3v5h-5v-2h3v-3z"/></svg>',
+  fsExit:'<svg viewBox="0 0 24 24"><path d="M9 4v5H4V7h3V4h2zM15 4h2v3h3v2h-5V4zM4 15h5v5H7v-3H4v-2zM15 15h5v2h-3v3h-2v-5z"/></svg>',
+  list:'<svg viewBox="0 0 24 24"><path d="M4 6h2.2v2.2H4zM8.2 6H20v2.2H8.2zM4 10.9h2.2v2.2H4zM8.2 10.9H20v2.2H8.2zM4 15.8h2.2V18H4zM8.2 15.8H20V18H8.2z"/></svg>',
+  signal:'<svg viewBox="0 0 24 24"><path d="M4 18h2.6v-5.2H4zM8.7 18h2.6V9H8.7zM13.4 18H16V5h-2.6z"/></svg>',
+  video:'<svg viewBox="0 0 24 24"><path d="M2.5 7A2.5 2.5 0 0 1 5 4.5h8A2.5 2.5 0 0 1 15.5 7v1.7l4.1-2.6a.8.8 0 0 1 1.4.7v10.4a.8.8 0 0 1-1.4.7l-4.1-2.6V17A2.5 2.5 0 0 1 13 19.5H5A2.5 2.5 0 0 1 2.5 17z"/></svg>',
+  gear:'<svg viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.49.49 0 0 0-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54a.48.48 0 0 0-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96a.49.49 0 0 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58a.49.49 0 0 0-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6A3.61 3.61 0 0 1 8.4 12c0-1.98 1.62-3.6 3.6-3.6s3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>',
+  star:'<svg viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-5.18 2.76L6 14.14l-5 4.87L3.09 9.27l5-4.87z"/></svg>',
+  film:'<svg viewBox="0 0 24 24"><path d="M4 4h16a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1zm1 2v1.6h2V6zm10 0v1.6h2V6zM5 10.2v1.6h2v-1.6zm10 0v1.6h2v-1.6zM10 8v8l5.6-4z"/></svg>'
+};
+
+/* ================= 主题 ================= */
+var THEMES = [
+  { name:'霓虹紫', colors:['#22d3ee','#a855f7','#f0abfc'], bg:[7,5,18] },
+  { name:'赛博蓝', colors:['#67e8f9','#3b82f6','#6366f1'], bg:[4,10,20] },
+  { name:'日落橙', colors:['#fde047','#fb923c','#f43f5e'], bg:[18,6,10] },
+  { name:'极光绿', colors:['#a3e635','#10b981','#22d3ee'], bg:[4,16,12] }
+];
+var rgbCache = {};
+function hexToRgb(h){
+  if (rgbCache[h]) return rgbCache[h];
+  var c = [parseInt(h.slice(1,3),16), parseInt(h.slice(3,5),16), parseInt(h.slice(5,7),16)];
+  rgbCache[h] = c;
+  return c;
+}
+function colorAt(t, alpha){
+  var cs = getColors();
+  t = t < 0 ? 0 : t > 1 ? 1 : t;
+  var seg = t < 0.5 ? 0 : 1, lt = t < 0.5 ? t*2 : (t-0.5)*2;
+  var A = hexToRgb(cs[seg]), B = hexToRgb(cs[seg+1]);
+  var r = (A[0]+(B[0]-A[0])*lt)|0, g = (A[1]+(B[1]-A[1])*lt)|0, b = (A[2]+(B[2]-A[2])*lt)|0;
+  return alpha == null ? 'rgb('+r+','+g+','+b+')' : 'rgba('+r+','+g+','+b+','+alpha+')';
+}
+function rgbStr(arr, a){
+  return a == null ? 'rgb('+arr[0]+','+arr[1]+','+arr[2]+')' : 'rgba('+arr[0]+','+arr[1]+','+arr[2]+','+a+')';
+}
+
+/* ================= 状态 ================= */
+var BANDS = 96;
+var MODE_NAMES = ['频谱','环形','波形','星云','瀑布'];
+var tracks = [], current = -1;
+var dpr = 1, W = 0, H = 0;
+var actx = null, analyser = null, srcNode = null;
+var freqData = null, timeData = null, bandEdges = null;
+var bandsArr = new Float32Array(BANDS);
+var peaks = new Float32Array(BANDS);
+var fakeTime = new Float32Array(2048);
+var level = 0, energy = 0, bass = 0, bassHist = [];
+var beatPulse = 0, lastBeatTime = 0, newBeat = false;
+var rot = 0, frameCount = 0;
+var lastActivity = performance.now();
+var lastTimeStr = '';
+
+function loadPref(k, d){
+  try { var v = localStorage.getItem(k); return v === null ? d : +v; } catch(e){ return d; }
+}
+function savePref(k, v){ try { localStorage.setItem(k, v); } catch(e){} }
+function clampN(v, a, b){ return v < a ? a : v > b ? b : v; }
+var mode = clampN(loadPref('mv.mode', 0), 0, 4) | 0;
+var themeIdx = clampN(loadPref('mv.theme', 0), 0, THEMES.length-1) | 0;
+var sens = clampN(loadPref('mv.sens', 0.75), 0.4, 2.5);
+var bloggerOn = false;
+var lastBcDur = '';
+var blLayout = loadPref('mv.blLayout', 0) === 1 ? 'top' : 'dispersed';
+var bgUrl = null, bgImg = null, autoTheme = null;
+var blurAmt = loadPref('mv.blurAmt', -1);
+if (blurAmt < 0) blurAmt = loadPref('mv.blur', 0) === 1 ? 26 : 0; /* 旧版布尔开关迁移 */
+var bgExtract = loadPref('mv.bgExtract', 0) === 1;
+var exporting = false;
+
+/* ================= 音频管线 ================= */
+function ensureAudio(){
+  if (actx) return;
+  var AC = window.AudioContext || window.webkitAudioContext;
+  if (!AC){ toast('当前浏览器不支持 Web Audio'); return; }
+  actx = new AC();
+  analyser = actx.createAnalyser();
+  analyser.fftSize = 2048;
+  analyser.smoothingTimeConstant = 0.8;
+  srcNode = actx.createMediaElementSource(audio);
+  srcNode.connect(analyser);
+  analyser.connect(actx.destination);
+  freqData = new Uint8Array(analyser.frequencyBinCount);
+  timeData = new Uint8Array(analyser.fftSize);
+  buildBandEdges();
+}
+/*  分频器构建（在 ensureAudio 中调用一次）
+ *  把 AnalyserNode 的 1024 个频率 bin 按对数映射分到 BANDS(96) 个"桶"，
+ *  使得低频段（20-200Hz 能量集中、bin 密集）只占几个桶，
+ *  高频段（8-16kHz bin 很稀疏）也能占足够桶数。分桶结果：
+ *  bandEdges[0..96]  - 每个桶对应的 freqData 起始 bin 索引，
+ *  计算时 [bandEdges[i], bandEdges[i+1]) 范围内所有 bin 幅度取平均。
+ *  fMin/fMax 决定音域上下限（30Hz-16kHz，超出的 bin 忽略）。
+ */
+function buildBandEdges(){
+  var n = analyser.frequencyBinCount;
+  var nyq = actx.sampleRate / 2;
+  var fMin = 30, fMax = Math.min(16000, nyq);
+  bandEdges = [];
+  for (var i = 0; i <= BANDS; i++){
+    var f = fMin * Math.pow(fMax/fMin, i/BANDS);
+    bandEdges.push(clampN(Math.round(f/nyq*n), 1, n-1));
+  }
+  for (i = 1; i <= BANDS; i++){
+    if (bandEdges[i] <= bandEdges[i-1]) bandEdges[i] = bandEdges[i-1] + 1;
+  }
+  if (bandEdges[BANDS] > n-1) bandEdges[BANDS] = n-1;
+}
+/*  逐帧计算：把 AnalyserNode 的 freqData(0-255) 压缩到 BANDS 维度，
+ *  同时做三项后处理让可视化更"好看"：
+ *   1. 高频补偿（指数曲线给高频更高增益，否则高频区域全是零）；
+ *   2. Gamma 压缩（v^1.25）增强对比度，压低噪声底；
+ *   3. 乘以 sens（灵敏度设置），输出值不设上限，让强低频能撑满画面。
+ *  返回平均电平（0~1）供 beat 检测等用途。 bandsArr 是全局数组，
+ *  供 renderers[i]() 在当帧读取各桶数值。 */
+function computeBands(){
+  var sum = 0;
+  for (var i = 0; i < BANDS; i++){
+    var a = bandEdges[i], b = bandEdges[i+1];
+    if (b <= a) b = a+1;
+    if (b > freqData.length) b = freqData.length;
+    var s = 0;
+    for (var j = a; j < b; j++) s += freqData[j];
+    var v = (s/(b-a))/255;
+    v *= 0.55 + 1.15*(i/BANDS);          /* 高频能量补偿 */
+    v = Math.pow(Math.min(1, v*1.15), 1.25); /* gamma 压噪 */
+    bandsArr[i] = v * sens;              /* 乘以灵敏度，幅值不设上限 */
+    sum += v;
+  }
+  return sum/BANDS;
+}
+/*  简易节拍检测（不依赖频谱峰值，只看低频区域能量变化）：
+ *   - 取前 10 个桶的平均值作为当前低频电平 bass；
+ *   - 维护一个滑动窗口 bassHist（最近 50 帧）求平均 avg；
+ *   - 当 bass > avg×1.32（当前低频明显高于近期平均）且 bass > 0.25
+ *     （排除静音误触发）且距上次节拍 > 220ms（防连击误判）时，
+ *     判定为一次节拍：beatPulse 冲到 1，每帧乘 0.94 衰减。
+ *   - beatPulse 被渲染器读取，用于脉冲效果（条形放大、环形扩张等）。
+ *   - newBeat 标记仅在判定当帧为 true，供粒子系统触发迸发。 */
+function detectBeat(now){
+  var b = 0;
+  for (var i = 0; i < 10; i++) b += bandsArr[i];
+  b /= 10;
+  bass = b;
+  bassHist.push(b);
+  if (bassHist.length > 50) bassHist.shift();
+  var avg = 0;
+  for (i = 0; i < bassHist.length; i++) avg += bassHist[i];
+  avg /= bassHist.length;
+  if (bassHist.length > 20 && b > avg*1.32 && b > 0.25 && now-lastBeatTime > 220){
+    lastBeatTime = now;
+    beatPulse = 1;
+    newBeat = true;
+  }
+  beatPulse *= 0.94;
+  if (beatPulse < 0.01) beatPulse = 0;
+}
+/*  待机动画（无音频加载时播放柔和的正弦波动画，保持画面活跃）。
+ *  fakeTime 模拟 getByteTimeDomainData（直流偏移 128），
+ *  bandsArr 用多频率正弦波叠加模拟鼓点/垫子的节律起伏，
+ *  注意各级独立不影响实时 beat 检测（level/bass 保持 0.1）。
+ */
+function fakeBands(now){
+  var t = now*0.001;
+  for (var i = 0; i < BANDS; i++){
+    var x = i/BANDS;
+    bandsArr[i] = Math.max(0, 0.10 + 0.07*Math.sin(t*1.2 + x*8) + 0.05*Math.sin(t*0.7 - x*14) + 0.04*Math.sin(t*2.3 + x*3)) * sens;
+  }
+  for (i = 0; i < fakeTime.length; i++){
+    fakeTime[i] = 128 + Math.sin(i*0.02 + t*2)*10 + Math.sin(i*0.045 - t*1.3)*6;
+  }
+  level = 0.1; bass = 0.1; energy = 0.1;
+}
+
+/* ================= 渲染：通用 ================= */
+/* 反馈式残影：主画布每帧先涂满不透明底色，再以 retain 透明度叠回上一帧。
+   retain 必须 < 0.5 —— 8bit 舍入下才能保证亮度差最终衰减到 0，不留永久灰印。 */
+var trailCv = document.createElement('canvas');
+var trailCtx = trailCv.getContext('2d');
+function beginFrame(retain){
+  ctx.globalCompositeOperation = 'source-over';
+  ctx.globalAlpha = 1;
+  if (bgUrl){ /* 有背景图：画布保持透明，让 CSS 背景层透出 */
+    ctx.clearRect(0, 0, W, H);
+  } else {
+    ctx.fillStyle = rgbStr(getBg(), 1);
+    ctx.fillRect(0, 0, W, H);
+  }
+  ctx.globalAlpha = retain;
+  ctx.drawImage(trailCv, 0, 0, W, H);
+  ctx.globalAlpha = 1;
+}
+function endFrame(){
+  trailCtx.clearRect(0, 0, trailCv.width, trailCv.height);
+  trailCtx.drawImage(ctx.canvas, 0, 0); /* 跟随当前 ctx（实时主画布或导出画布） */
+}
+
+/* ---------- 模式 1：频谱柱状 ---------- */
+var trailVals = new Float32Array(BANDS); /* 频谱专属尾迹值：跟随条形缓慢回落的残影 */
+function drawBars(){
+  /* 频谱不使用全局反馈残影：条形亮度恒定不受拖尾设置影响，
+     拖尾效果由每根条上方独立的渐隐尾迹表现 */
+  beginFrame(0);
+  var baseline = H*0.88, usable = H*0.72;
+  var bw = W/BANDS, barW = Math.max(2, bw*0.62);
+  var capH = Math.max(3, Math.round(barW*0.22)); /* 峰值帽厚度随条宽缩放（4K 下可见） */
+  var trailFall = 0.06 - trailAmt*0.09;          /* 尾迹回落速度：拖尾越强回落越慢 */
+  ctx.globalCompositeOperation = 'lighter';
+  for (var i = 0; i < BANDS; i++){
+    var v = bandsArr[i]*(1 + 0.10*beatPulse*beatAmt);
+    var h = v*usable;
+    var x = i*bw + bw/2;
+    var t = i/(BANDS-1)*0.9;
+    /* 专属尾迹：条形回落时残影从峰顶缓慢跟随，只出现在条形上方 */
+    if (v >= trailVals[i]) trailVals[i] = v;
+    else trailVals[i] = Math.max(v, trailVals[i] - trailFall);
+    if (trailAmt > 0 && trailVals[i] > v){
+      ctx.globalAlpha = trailAmt*0.55;
+      ctx.fillStyle = colorAt(t);
+      ctx.fillRect(x-barW/2, baseline - trailVals[i]*usable, barW, (trailVals[i]-v)*usable);
+    }
+    /* 主体条形：恒定亮度 */
+    ctx.globalAlpha = 0.95;
+    ctx.fillStyle = colorAt(t);
+    ctx.fillRect(x-barW/2, baseline-h, barW, h);
+    /* 地面反射 */
+    ctx.globalAlpha = 0.13;
+    var rh = reflectOn ? Math.min(h*0.4, H-baseline-2) : 0;
+    if (rh > 0) ctx.fillRect(x-barW/2, baseline+2, barW, rh);
+    /* 峰值帽：底边精确锚定在峰值位置 */
+    if (peaks[i] < v) peaks[i] = v;
+    else peaks[i] = Math.max(0, peaks[i]-peakSpeed);
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = colorAt(t, 0.95);
+    ctx.fillRect(x-barW/2, baseline - peaks[i]*usable - capH, barW, capH);
+  }
+  ctx.globalCompositeOperation = 'source-over';
+}
+
+/* ---------- 模式 2：环形频谱 ---------- */
+function radialLine(cx, cy, a, r1, r2){
+  ctx.beginPath();
+  ctx.moveTo(cx + Math.cos(a)*r1, cy + Math.sin(a)*r1);
+  ctx.lineTo(cx + Math.cos(a)*r2, cy + Math.sin(a)*r2);
+  ctx.stroke();
+}
+function drawRadial(now){
+  beginFrame(trailAmt);
+  var cx = W/2, cy = H/2, R = Math.min(W, H);
+  var r0 = R*0.16*(1 + 0.14*beatPulse*beatAmt);
+  var maxLen = R*0.30;
+  var half = BANDS >> 1;
+  rot += (0.0016 + energy*0.004) * rotAmt;
+  ctx.globalCompositeOperation = 'lighter';
+  ctx.lineCap = 'round';
+  var lw = Math.max(1.5, (Math.PI*r0/half)*0.42);
+  ctx.lineWidth = lw;
+  var seam = 0.05; /* 上下接缝处留出的角度空隙 */
+  for (var i = 0; i < half; i++){
+    var v = bandsArr[i];
+    var t = i/(half-1);
+    var base = -Math.PI/2 + seam + t*(Math.PI - seam*2);
+    var len = v*maxLen*(1 + 0.25*beatPulse*beatAmt) + 2;
+    ctx.strokeStyle = colorAt(t*0.85, 0.55 + v*0.45);
+    /* 左右两侧镜像，且共用同一个 rot，整环朝同一方向旋转 */
+    radialLine(cx, cy, base + rot, r0+5, r0+5+len);
+    radialLine(cx, cy, Math.PI - base + rot, r0+5, r0+5+len);
+  }
+  /* 内圈波形环 */
+  var td = timeData || fakeTime;
+  ctx.beginPath();
+  var n = 180;
+  for (i = 0; i <= n; i++){
+    var ang = (i/n)*Math.PI*2;
+    var s = (td[Math.floor(i/n*(td.length-1))] - 128)/128;
+    var r = r0*0.72 + s*r0*0.25;
+    var px = cx + Math.cos(ang)*r, py = cy + Math.sin(ang)*r;
+    if (i) ctx.lineTo(px, py); else ctx.moveTo(px, py);
+  }
+  ctx.closePath();
+  ctx.strokeStyle = colorAt(0.7, 0.85);
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+  /* 内圈描边与中心脉冲 */
+  ctx.strokeStyle = colorAt(0.15, 0.9);
+  ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.arc(cx, cy, r0-2, 0, Math.PI*2); ctx.stroke();
+  ctx.fillStyle = colorAt(0.5, 0.5 + 0.4*beatPulse);
+  ctx.beginPath(); ctx.arc(cx, cy, 3 + beatPulse*9 + level*5, 0, Math.PI*2); ctx.fill();
+  ctx.globalCompositeOperation = 'source-over';
+}
+
+/* ---------- 模式 3：波形律动 ---------- */
+var waveHist = [];
+function drawWave(){
+  beginFrame(trailAmt);
+  var td = timeData || fakeTime;
+  if (frameCount % 2 === 0){
+    waveHist.unshift(Float32Array.from(td));
+    if (waveHist.length > 7) waveHist.pop();
+  }
+  if (!waveHist.length) return;
+  var cy = H/2;
+  var amp = H*0.30*(0.55 + 0.45*level + 0.22*beatPulse);
+  var N = 240;
+  for (var li = waveHist.length-1; li >= 0; li--){
+    var snap = waveHist[li];
+    var isTop = li === 0;
+    var k = 1 - li*0.07;
+    ctx.beginPath();
+    for (var i = 0; i <= N; i++){
+      var idx = Math.floor(i/N*(snap.length-1));
+      var v = (snap[idx]-128)/128;
+      var x = i/N*W;
+      if (i) ctx.lineTo(x, cy - v*amp*k); else ctx.moveTo(x, cy - v*amp*k);
+    }
+    for (i = N; i >= 0; i--){
+      idx = Math.floor(i/N*(snap.length-1));
+      v = (snap[idx]-128)/128;
+      ctx.lineTo(i/N*W, cy + v*amp*k*0.8);
+    }
+    ctx.closePath();
+    if (isTop){
+      var g = ctx.createLinearGradient(0, cy-amp, 0, cy+amp);
+      g.addColorStop(0, colorAt(0, 0.30));
+      g.addColorStop(0.5, colorAt(0.5, 0.22));
+      g.addColorStop(1, colorAt(1, 0.30));
+      ctx.fillStyle = g;
+      ctx.fill();
+      ctx.strokeStyle = colorAt(0.5, 1);
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    } else {
+      ctx.strokeStyle = colorAt(0.5, 0.28*(1 - li/waveHist.length));
+      ctx.lineWidth = 1;
+      ctx.stroke();
+    }
+  }
+}
+
+/* ---------- 模式 4：粒子星云 ---------- */
+var orbiters = [], bursts = [];
+var ORBIT_N = 240; /* 兼容保留（实际数量由 orbCount 控制） */
+function spawnOrbiter(){
+  orbiters.push({
+    band: (Math.random()*BANDS)|0,
+    a: Math.random()*Math.PI*2,
+    r: 0.35 + Math.random()*0.6,
+    av: (0.002 + Math.random()*0.01)*(Math.random() < 0.5 ? -1 : 1),
+    size: 1 + Math.random()*2.2,
+    tw: Math.random()*Math.PI*2,
+    fresh: true, lx: 0, ly: 0
+  });
+}
+function drawParticles(now){
+  beginFrame(Math.max(0.4, trailAmt));
+  var cx = W/2, cy = H/2, R = Math.min(W, H)/2;
+  while (orbiters.length < orbCount) spawnOrbiter();
+  while (orbiters.length > orbCount) orbiters.pop();
+  var spd = 0.5 + energy*2.2 + beatPulse*1.6;
+  ctx.globalCompositeOperation = 'lighter';
+  for (var i = 0; i < orbiters.length; i++){
+    var p = orbiters[i];
+    var v = bandsArr[p.band];
+    p.a += p.av*spd*(1 + v);
+    var rad = p.r*R*0.85 + v*R*0.22 + Math.sin(now*0.001 + p.tw)*6;
+    var x = cx + Math.cos(p.a)*rad, y = cy + Math.sin(p.a)*rad*0.92;
+    var s = p.size*(0.6 + v*1.8);
+    var al = Math.min(1, 0.25 + v*0.75);
+    if (!p.fresh){ /* 运动拖尾：与上一帧位置连线 */
+      ctx.strokeStyle = colorAt(p.band/BANDS);
+      ctx.globalAlpha = al*0.45;
+      ctx.lineWidth = s*1.3;
+      ctx.beginPath(); ctx.moveTo(p.lx, p.ly); ctx.lineTo(x, y); ctx.stroke();
+    }
+    p.fresh = false; p.lx = x; p.ly = y;
+    ctx.fillStyle = colorAt(p.band/BANDS);
+    ctx.globalAlpha = al*0.22; /* 外圈辉光 */
+    ctx.beginPath(); ctx.arc(x, y, s*2.6, 0, Math.PI*2); ctx.fill();
+    ctx.globalAlpha = al;
+    ctx.beginPath(); ctx.arc(x, y, s, 0, Math.PI*2); ctx.fill();
+  }
+  if (newBeat){ /* 节拍迸发 */
+    for (var k = 0; k < 26; k++){
+      var ba = Math.random()*Math.PI*2;
+      var bsp = (2 + Math.random()*6)*(R/400);
+      bursts.push({ x:cx, y:cy, vx:Math.cos(ba)*bsp, vy:Math.sin(ba)*bsp, life:1, size:1 + Math.random()*2.5, c:Math.random(), fresh:true, lx:cx, ly:cy });
+    }
+  }
+  for (i = bursts.length-1; i >= 0; i--){
+    var b = bursts[i];
+    b.x += b.vx; b.y += b.vy;
+    b.vx *= 0.965; b.vy *= 0.965;
+    b.life -= 0.02;
+    if (b.life <= 0){ bursts.splice(i, 1); continue; }
+    if (!b.fresh){
+      ctx.strokeStyle = colorAt(b.c);
+      ctx.globalAlpha = b.life*0.5;
+      ctx.lineWidth = Math.max(0.5, b.size*b.life);
+      ctx.beginPath(); ctx.moveTo(b.lx, b.ly); ctx.lineTo(b.x, b.y); ctx.stroke();
+    }
+    b.fresh = false; b.lx = b.x; b.ly = b.y;
+    ctx.fillStyle = colorAt(b.c);
+    ctx.globalAlpha = b.life*0.9;
+    ctx.beginPath(); ctx.arc(b.x, b.y, b.size*b.life + 0.4, 0, Math.PI*2); ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+  ctx.globalCompositeOperation = 'source-over';
+  var g = ctx.createRadialGradient(cx, cy, 0, cx, cy, R*0.25);
+  g.addColorStop(0, colorAt(0.5, 0.10 + 0.12*beatPulse*beatAmt));
+  g.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = g;
+  ctx.fillRect(cx - R*0.25, cy - R*0.25, R*0.5, R*0.5);
+}
+
+/* ---------- 模式 5：瀑布热图 ---------- */
+var off = null, octx = null, rowH = 2;
+function ensureOff(){
+  var pw = Math.max(2, Math.round(W*dpr)), ph = Math.max(2, Math.round(H*dpr));
+  if (off && off.width === pw && off.height === ph) return;
+  off = document.createElement('canvas');
+  off.width = pw; off.height = ph;
+  octx = off.getContext('2d');
+  if (!bgUrl){
+    octx.fillStyle = rgbStr(getBg(), 1);
+    octx.fillRect(0, 0, pw, ph);
+  }
+  rowH = Math.max(2, Math.round(1.5*dpr));
+}
+function drawWaterfall(){
+  ensureOff();
+  var pw = off.width;
+  octx.drawImage(off, 0, rowH); /* 历史下移一行 */
+  var bandW = pw/BANDS;
+  for (var i = 0; i < BANDS; i++){
+    var v = bandsArr[i];
+    var x = Math.floor(i*bandW), w = Math.ceil(bandW)+1;
+    if (v < 0.02){
+      if (bgUrl) octx.clearRect(x, 0, w, rowH);
+      else { octx.fillStyle = rgbStr(getBg(), 1); octx.fillRect(x, 0, w, rowH); }
+    } else {
+      octx.fillStyle = colorAt(Math.pow(v, 0.8));
+      octx.fillRect(x, 0, w, rowH);
+    }
+  }
+  ctx.drawImage(off, 0, 0, W, H);
+}
+
+var renderers = [drawBars, drawRadial, drawWave, drawParticles, drawWaterfall];
+
+/* ============================================================
+ * 预设状态与切换
+ * classic=经典（当前渲染器），pro=高级预设（Pro 渲染器）。
+ * Shift+数字键切换同模式的预设（不占数字键）。
+ * ============================================================ */
+var presetState = loadPref('mv.preset', 'classic'); /* 'classic' | 'pro' */
+function applyPreset(){
+  /* 重建 Pro 粒子群（模式切换时 resetVizState 已清空） */
+  if (presetState === 'pro') proOrb.length = 0;
+}
+function getCurrentRenderer(){
+  return presetState === 'pro' ? renderersPro : renderers;
+}
+
+/* ============================================================
+ * Pro 预设渲染器（在经典预设基础上升级，视觉更精致）
+ * 模式 1 Pro: 频谱 - 多色渐变条 + 柔光晕 + 条形侧面高光
+ * 模式 2 Pro: 环形 - 渐变放射 + 中心脉冲光环 + 强拖尾
+ * 模式 3 Pro: 波形 - 双层填充交织 + 呼吸缩放 + 交替填充色
+ * 模式 4 Pro: 粒子 - 呼吸脉动 + 低频粒子连线 + 彗尾
+ * 模式 5 Pro: 瀑布 - 暖色温渐变 + 底部渐隐 + 中线高光
+ * ============================================================ */
+
+/* ---- Pro 频谱：多色渐变条 + 柔和光晕 ---- */
+var proTrail = new Float32Array(BANDS);
+function drawBarsPro(){
+  beginFrame(0); /* 全清（无全局反馈，条形亮度恒定） */
+  var baseline = H*0.88, usable = H*0.72;
+  var bw = W/BANDS, barW = Math.max(2, bw*0.58);
+  var capH = Math.max(4, Math.round(barW*0.24));
+  var trailFall = 0.06 - trailAmt*0.09;
+  /* 每帧构建一次多色渐变缓存（按频率分布），避免逐条重复构建 */
+  var gradMap = [];
+  for (var j = 0; j < BANDS; j++){
+    var gj = ctx.createLinearGradient(0, baseline-usable, 0, baseline);
+    gj.addColorStop(0,   colorAt(j/(BANDS-1) * 0.35 + 0.02));
+    gj.addColorStop(0.5, colorAt(j/(BANDS-1) * 0.35 + 0.18));
+    gj.addColorStop(1,   colorAt(j/(BANDS-1) * 0.35 + 0.34));
+    gradMap.push(gj);
+  }
+  ctx.globalCompositeOperation = 'lighter';
+  for (var i = 0; i < BANDS; i++){
+    var v = bandsArr[i]*(1 + 0.10*beatPulse*beatAmt);
+    var h = v*usable;
+    var x = i*bw + bw/2;
+    /* 尾迹 */
+    if (v >= proTrail[i]) proTrail[i] = v;
+    else proTrail[i] = Math.max(v, proTrail[i] - trailFall);
+    if (trailAmt > 0 && proTrail[i] > v){
+      ctx.globalAlpha = trailAmt*0.4;
+      ctx.fillStyle = colorAt(i/(BANDS-1)*0.35 + 0.18);
+      ctx.fillRect(x-barW/2, baseline-proTrail[i]*usable, barW, (proTrail[i]-v)*usable);
+    }
+    /* 主条：多色垂直渐变（暗底→亮中→稍暗顶） */
+    ctx.globalAlpha = 0.92;
+    ctx.fillStyle = gradMap[i];
+    ctx.fillRect(x-barW/2, baseline-h, barW, h);
+    /* 侧面高光（条右侧 2px 亮线，制造立体感） */
+    ctx.globalAlpha = 0.22;
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(x+barW/2-1.5, baseline-h, 1.5, h);
+    /* 峰值帽 */
+    if (proTrail[i] < v) proTrail[i] = v;
+    else proTrail[i] = Math.max(0, proTrail[i]-peakSpeed);
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = colorAt(i/(BANDS-1)*0.35 + 0.17);
+    ctx.fillRect(x-barW/2, baseline-proTrail[i]*usable-capH, barW, capH);
+  }
+  ctx.globalCompositeOperation = 'source-over';
+}
+/* ---- Pro 环形：渐变放射 + 中心脉冲光环 + 强拖尾 ---- */
+/* ---- Pro 环形：经典全部元素 + 双层反向旋转 + 频段跳动点 + 发光增强 ---- */
+function drawRadialPro(now){
+  beginFrame(0.35); /* 残影拖尾，转动的条会留下弧形光痕 */
+  var cx = W/2, cy = H/2, R = Math.min(W, H);
+  var r0 = R*0.16*(1 + 0.14*beatPulse*beatAmt);
+  var maxLen = R*0.30;
+  var half = BANDS >> 1;
+  /* 双层反向旋转：外层频谱正转，整体产生齿轮咬合般的动态张力 */
+  rot += (0.0016 + energy*0.004) * rotAmt;
+  var innerRot = -rot*1.6;
+  ctx.globalCompositeOperation = 'lighter';
+  ctx.lineCap = 'round';
+  /* 1. 外层频谱放射条（经典布局：上弧+下弧镜像）+ 发光层 + 顶端跳动点 */
+  for (var i = 0; i < half; i++){
+    var v = bandsArr[i];
+    var t = i/(half-1);
+    var base = -Math.PI/2 + 0.05 + t*(Math.PI - 0.1);
+    var aR = base + rot;
+    var aL = Math.PI - base + rot;
+    var len = v*maxLen*(1 + 0.25*beatPulse*beatAmt) + 2;
+    var lw = Math.max(1.5, (Math.PI*r0/half)*0.42);
+    var c = colorAt(t*0.85, 0.55 + v*0.45);
+    /* 发光层（宽线低透明度） */
+    if (v > 0.06){
+      ctx.globalAlpha = v*0.22;
+      ctx.lineWidth = lw*2.8;
+      ctx.strokeStyle = c;
+      radialLine(cx, cy, aR, r0+4, r0+4+len);
+      radialLine(cx, cy, aL, r0+4, r0+4+len);
+      ctx.globalAlpha = 1;
+    }
+    /* 主体条 */
+    ctx.lineWidth = lw;
+    ctx.strokeStyle = c;
+    radialLine(cx, cy, aR, r0+5, r0+5+len);
+    radialLine(cx, cy, aL, r0+5, r0+5+len);
+    /* 频段跳动点：跟随条顶端的能量光点，节拍时放大 */
+    if (v > 0.12){
+      var dotR = 1.5 + v*3.5 + beatPulse*beatAmt*1.5;
+      ctx.fillStyle = colorAt(t*0.85, 0.9);
+      var tx = cx + Math.cos(aR)*(r0+5+len), ty = cy + Math.sin(aR)*(r0+5+len);
+      ctx.beginPath(); ctx.arc(tx, ty, dotR, 0, Math.PI*2); ctx.fill();
+      var tx2 = cx + Math.cos(aL)*(r0+5+len), ty2 = cy + Math.sin(aL)*(r0+5+len);
+      ctx.beginPath(); ctx.arc(tx2, ty2, dotR, 0, Math.PI*2); ctx.fill();
+    }
+  }
+  /* 2. 内圈波形环（经典核心元素！随波形起伏的闭合环，反向旋转） */
+  var td = timeData || fakeTime;
+  var n = 180;
+  var waveR = r0*0.66;
+  ctx.beginPath();
+  for (i = 0; i <= n; i++){
+    var ang = (i/n)*Math.PI*2 + innerRot;
+    var s = (td[Math.floor(i/n*(td.length-1))] - 128)/128;
+    var rr = waveR + s*waveR*0.5;
+    var px = cx + Math.cos(ang)*rr, py = cy + Math.sin(ang)*rr;
+    if (i) ctx.lineTo(px, py); else ctx.moveTo(px, py);
+  }
+  ctx.closePath();
+  ctx.strokeStyle = colorAt(0.7, 0.85);
+  ctx.lineWidth = 2;
+  ctx.shadowColor = colorAt(0.7, 0.6);
+  ctx.shadowBlur = 8;
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+  /* 3. 中层细环（内圈波形环外的静态参照环，随节拍呼吸） */
+  ctx.beginPath();
+  ctx.arc(cx, cy, r0*0.88, 0, Math.PI*2);
+  ctx.strokeStyle = colorAt(0.25, 0.3 + beatPulse*beatAmt*0.25);
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+  /* 4. 内圈描边（频谱条基座） */
+  ctx.beginPath();
+  ctx.arc(cx, cy, r0-2, 0, Math.PI*2);
+  ctx.strokeStyle = colorAt(0.15, 0.9);
+  ctx.lineWidth = 2;
+  ctx.stroke();
+  /* 5. 中心脉冲点（经典元素，节拍时爆发） */
+  var pulseR = 3 + beatPulse*beatAmt*9 + level*5;
+  ctx.fillStyle = colorAt(0.5, 0.5 + 0.4*beatPulse*beatAmt);
+  ctx.beginPath();
+  ctx.arc(cx, cy, pulseR, 0, Math.PI*2);
+  ctx.fill();
+  /* 中心点光晕 */
+  var g = ctx.createRadialGradient(cx, cy, 0, cx, cy, pulseR*4);
+  g.addColorStop(0, colorAt(0.5, 0.35));
+  g.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = g;
+  ctx.beginPath();
+  ctx.arc(cx, cy, pulseR*4, 0, Math.PI*2);
+  ctx.fill();
+  ctx.globalCompositeOperation = 'source-over';
+}
+/* ---- Pro 波形：双层填充交织 + 呼吸缩放 ---- */
+function drawWavePro(){
+  beginFrame(0.3);
+  var td = timeData || fakeTime;
+  if (frameCount % 2 === 0){ waveHist.unshift(Float32Array.from(td)); if (waveHist.length > 9) waveHist.pop(); }
+  if (!waveHist.length) return;
+  var cy = H/2;
+  var breathe = 1 + level*0.08 + beatPulse*beatAmt*0.05;
+  var baseAmp = H*0.28;
+  /* 交替绘色（奇偶历史层用不同渐变，形成交织） */
+  for (var li = waveHist.length-1; li >= 0; li--){
+    var snap = waveHist[li];
+    var isTop = li === 0;
+    var k = (1 - li*0.06) * breathe;
+    var amp = baseAmp*k;
+    ctx.beginPath();
+    var N = 240;
+    for (var i = 0; i <= N; i++){
+      var v = (snap[Math.floor(i/N*(snap.length-1))]-128)/128;
+      if (i) ctx.lineTo(i/N*W, cy - v*amp); else ctx.moveTo(i/N*W, cy - v*amp);
+    }
+    for (i = N; i >= 0; i--){
+      var v2 = (snap[Math.floor(i/N*(snap.length-1))]-128)/128;
+      ctx.lineTo(i/N*W, cy + v2*amp*0.85);
+    }
+    ctx.closePath();
+    if (isTop){
+      var g = ctx.createLinearGradient(0, cy-amp, 0, cy+amp);
+      g.addColorStop(0,   colorAt(0, 0.35));
+      g.addColorStop(0.3, colorAt(0.35, 0.15));
+      g.addColorStop(0.7, colorAt(0.35, 0.15));
+      g.addColorStop(1,   colorAt(0.7, 0.35));
+      ctx.fillStyle = g;
+      ctx.fill();
+      ctx.strokeStyle = colorAt(0.5, 0.9);
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    } else {
+      var alpha = 0.18*(1-li/waveHist.length);
+      ctx.strokeStyle = colorAt(0.5+li*0.05, alpha);
+      ctx.lineWidth = 1;
+      ctx.stroke();
+    }
+  }
+}
+/* ---- Pro 粒子：呼吸脉动 + 低频连线 + 彗尾 ---- */
+var proOrb = [], proBurst = [];
+var PRO_ORB_N = 280;
+function spawnProOrb(){
+  proOrb.push({
+    band: (Math.random()*BANDS)|0, a: Math.random()*Math.PI*2,
+    r: 0.35+Math.random()*0.6, av: (0.002+Math.random()*0.01)*(Math.random()<0.5?-1:1),
+    size: 1+Math.random()*2.4, tw: Math.random()*Math.PI*2,
+    phase: Math.random()*Math.PI*2, // 脉动相位
+    depth: 0.4+Math.random()*0.6,   // 深度层次（0远1近）
+    fresh: true, lx: 0, ly: 0
+  });
+}
+/* ---- Pro 星云：频段轨道环 + 深度层次 + 彗尾流星群（与经典完全不同的视觉语言） ----
+   经典版 = 自由环绕粒子群；Pro 版 = 每个粒子锁在所属频段的"轨道环"上运行，
+   轨道半径按频段从内(低频)到外(高频)排布，形成唱片般的层次环。
+   频段有能量时该环发亮、粒子加速、拖出彗尾；节拍时中心迸发流星环。 */
+function drawParticlesPro(now){
+  beginFrame(0.25);
+  var cx = W/2, cy = H/2, R = Math.min(W, H)/2;
+  while (proOrb.length < orbCount) spawnProOrb();
+  while (proOrb.length > orbCount) proOrb.pop();
+  ctx.globalCompositeOperation = 'lighter';
+  ctx.lineCap = 'round';
+  /* 1. 频段轨道弧：按频段能量画出发光的弧段（唱片层次环）
+     只画有能量的频段，弧的位置随时间缓慢流转 */
+  var ringGap = R*0.062;
+  var orbSpd = 0.4 + energy*1.8 + beatPulse*beatAmt*1.5;
+  for (var b2 = 0; b2 < BANDS; b2 += 4){ /* 每 4 个频段一道环 */
+    var bv = bandsArr[b2];
+    if (bv < 0.03) continue;
+    var ringR = R*0.22 + (b2/BANDS)*R*0.62;
+    var arcLen = 0.25 + bv*1.8;               /* 弧长随能量 */
+    var arcPhase = b2*0.7 + now*0.00035*(b2%8<4?1:-1); /* 正反交替流转 */
+    ctx.beginPath();
+    ctx.arc(cx, cy, ringR, arcPhase, arcPhase+arcLen);
+    ctx.strokeStyle = colorAt(b2/BANDS, 0.10 + bv*0.30);
+    ctx.lineWidth = 1.5 + bv*2.5;
+    ctx.stroke();
+  }
+  /* 2. 轨道粒子：每个粒子在其频段环上运行，深度决定大小/亮度 */
+  for (var i = 0; i < proOrb.length; i++){
+    var p = proOrb[i];
+    var v = bandsArr[p.band];
+    /* 粒子角度推进：基础角速度 + 能量加速 */
+    p.a += p.av*orbSpd*(0.6+v*2);
+    /* 轨道半径 = 频段环位置 + 能量外推 + 呼吸微动 */
+    var bandR = R*0.22 + (p.band/BANDS)*R*0.62;
+    var rad = bandR + v*R*0.05 + Math.sin(now*0.001+p.tw)*3;
+    var x = cx+Math.cos(p.a)*rad, y = cy+Math.sin(p.a)*rad;
+    /* 深度层次：depth 大 = 近 = 大而亮 */
+    var s = p.size*(0.5 + p.depth*0.9)*(0.7+v*1.3);
+    var al = Math.min(1, (0.2+p.depth*0.6)*(0.3+v*0.7));
+    /* 彗尾（能量越足尾越长） */
+    if (!p.fresh && v > 0.05){
+      var tailA = p.a - p.av*0.5*(1+v*3); /* 反向的尾巴 */
+      var tx = cx+Math.cos(tailA)*rad, ty = cy+Math.sin(tailA)*rad;
+      ctx.strokeStyle = colorAt(p.band/BANDS);
+      ctx.globalAlpha = al*v*0.55;
+      ctx.lineWidth = s*1.1;
+      ctx.beginPath(); ctx.moveTo(tx, ty); ctx.lineTo(x, y); ctx.stroke();
+    }
+    p.fresh = false; p.lx = x; p.ly = y;
+    /* 光晕 + 核心 */
+    ctx.fillStyle = colorAt(p.band/BANDS);
+    ctx.globalAlpha = al*0.16;
+    ctx.beginPath(); ctx.arc(x, y, s*3, 0, Math.PI*2); ctx.fill();
+    ctx.globalAlpha = al;
+    ctx.beginPath(); ctx.arc(x, y, s, 0, Math.PI*2); ctx.fill();
+  }
+  /* 3. 节拍流星环：节拍时从中心射出一圈流星（旋转散射） */
+  if (newBeat){
+    var meteorBase = Math.random()*Math.PI*2;
+    for (var k = 0; k < 22; k++){
+      var mAng = meteorBase + (k/22)*Math.PI*2;
+      proBurst.push({
+        x: cx, y: cy,
+        vx: Math.cos(mAng)*(1.5+Math.random()*4)*(R/400),
+        vy: Math.sin(mAng)*(1.5+Math.random()*4)*(R/400),
+        life: 1, size: 1.2+Math.random()*2.6, c: 0.2+Math.random()*0.6,
+        fresh: true, lx: cx, ly: cy
+      });
+    }
+  }
+  for (i = proBurst.length-1; i >= 0; i--){
+    var mb = proBurst[i];
+    mb.x+=mb.vx; mb.y+=mb.vy; mb.vx*=0.965; mb.vy*=0.965; mb.life-=0.016;
+    if (mb.life<=0){ proBurst.splice(i,1); continue; }
+    /* 流星尾 */
+    if (!mb.fresh){
+      ctx.strokeStyle = colorAt(mb.c);
+      ctx.globalAlpha = mb.life*0.55;
+      ctx.lineWidth = mb.size*mb.life*0.9;
+      ctx.beginPath(); ctx.moveTo(mb.lx, mb.ly); ctx.lineTo(mb.x, mb.y); ctx.stroke();
+    }
+    mb.fresh=false; mb.lx=mb.x; mb.ly=mb.y;
+    ctx.fillStyle = colorAt(mb.c);
+    ctx.globalAlpha = mb.life*0.9;
+    ctx.beginPath(); ctx.arc(mb.x, mb.y, mb.size*mb.life, 0, Math.PI*2); ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+  ctx.globalCompositeOperation = 'source-over';
+  /* 4. 中心辉光（节拍呼吸） */
+  var g = ctx.createRadialGradient(cx,cy,0,cx,cy,R*0.20);
+  g.addColorStop(0, colorAt(0.5, 0.12 + beatPulse*beatAmt*0.18));
+  g.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = g;
+  ctx.fillRect(cx-R*0.20, cy-R*0.20, R*0.4, R*0.4);
+  g.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = g; ctx.fillRect(cx-R*0.22,cy-R*0.22,R*0.44,R*0.44);
+}
+/* ---- Pro 瀑布：暖色温渐变 + 底部渐隐 ---- */
+var proOff = null, proOctx = null, proRowH = 2;
+function ensureProOff(){
+  var pw = Math.max(2, Math.round(W*dpr)), ph = Math.max(2, Math.round(H*dpr));
+  if (proOff && proOff.width === pw && proOff.height === ph) return;
+  proOff = document.createElement('canvas');
+  proOff.width = pw; proOff.height = ph;
+  proOctx = proOff.getContext('2d');
+  if (!bgUrl){ proOctx.fillStyle = rgbStr(getBg(),1); proOctx.fillRect(0,0,pw,ph); }
+  proRowH = Math.max(2, Math.round(1.5*dpr));
+}
+function drawWaterfallPro(){
+  ensureProOff();
+  var pw = proOff.width;
+  proOctx.drawImage(proOff, 0, proRowH);
+  var bandW = pw/BANDS;
+  for (var i = 0; i < BANDS; i++){
+    var v = bandsArr[i];
+    var x = Math.floor(i*bandW), w = Math.ceil(bandW)+1;
+    if (v < 0.02){
+      if (bgUrl) proOctx.clearRect(x,0,w,proRowH);
+      else { proOctx.fillStyle = rgbStr(getBg(),1); proOctx.fillRect(x,0,w,proRowH); }
+    } else {
+      /* 暖色温映射：高频用浅蓝，低频用暖橙，饱和度随能量增强 */
+      var hue = (1-v)*25 + v*210;  /* 25°(橙)~210°(蓝) */
+      var sat = 50 + v*35;
+      var lit = 40 + v*30;
+      proOctx.fillStyle = 'hsl('+hue+','+sat+'%,'+lit+'%)';
+      proOctx.fillRect(x, 0, w, proRowH);
+    }
+  }
+  /* 底部渐隐遮罩：画布下方 20% 区域用逐渐透明的背景色覆盖 */
+  var fadeH = Math.round(proOff.height * 0.22);
+  var fg = proOctx.createLinearGradient(0, proOff.height-fadeH, 0, proOff.height);
+  var bgc = getBg();
+  fg.addColorStop(0, 'rgba('+bgc[0]+','+bgc[1]+','+bgc[2]+',0)');
+  fg.addColorStop(1, 'rgba('+bgc[0]+','+bgc[1]+','+bgc[2]+',1)');
+  proOctx.fillStyle = fg;
+  proOctx.fillRect(0, proOff.height-fadeH, proOff.width, fadeH);
+  /* 中线高光 */
+  var midY = Math.round(proOff.height*0.48);
+  var mG = proOctx.createLinearGradient(0, midY-2, 0, midY+2);
+  mG.addColorStop(0, 'rgba(255,255,255,0)');
+  mG.addColorStop(0.5, 'rgba(255,255,255,0.07)');
+  mG.addColorStop(1, 'rgba(255,255,255,0)');
+  proOctx.fillStyle = mG;
+  proOctx.fillRect(0, midY-2, proOff.width, 4);
+  ctx.drawImage(proOff, 0, 0, W, H);
+}
+/* renderersPro 数组 */
+var renderersPro = [drawBarsPro, drawRadialPro, drawWavePro, drawParticlesPro, drawWaterfallPro];
+
+/* ================= 主循环 ================= */
+/*  主渲染循环（requestAnimationFrame 驱动）
+ *  每帧做的事（由内而外）：
+ *   1. 若 exporting=true，跳过全部渲染（渲染导出接管，避免与实时渲染抢 canvas）
+ *   2. 从 AnalyserNode 拉最新频谱/波形数据，或 fakeBands（无音频时待机动画）
+   *   3. 调用 renderers[mode](tMs) 或 renderersPro[mode](tMs)（由 presetState 选择），
+   *      渲染器内部调用 beginFrame/endFrame 做残影
+ *   4. 更新 HUD（进度条、时间）
+ *   每秒约 60 帧；节拍检测的 now 用 rAF 高精度时间戳（毫秒）。
+ */
+function frame(now){
+  requestAnimationFrame(frame);
+  if (exporting) return; /* 导出视频时让位给离线渲染 */
+  frameCount++;
+  newBeat = false;
+  if (analyser){
+    analyser.getByteFrequencyData(freqData);
+    analyser.getByteTimeDomainData(timeData);
+    level = computeBands();
+    energy += (level - energy)*0.1;
+    detectBeat(now);
+  } else {
+    fakeBands(now);
+  }
+  updateHUD();
+  getCurrentRenderer()[mode](now);
+  endFrame();
+}
+function updateHUD(){
+  if (!tracks.length) return;
+  var d = audio.duration || 0, c = audio.currentTime || 0;
+  var pct = d ? (c/d*100) : 0;
+  pFill.style.width = pct + '%';
+  pKnob.style.left = pct + '%';
+  var s = fmt(c), ds = fmt(d);
+  if (s !== lastTimeStr){
+    lastTimeStr = s;
+    tCur.textContent = s;
+    if (bloggerOn){
+      bcCur.textContent = s;
+      bdTime.textContent = s + ' / ' + ds;
+    }
+  }
+  if (bloggerOn){
+    bcFill.style.width = pct + '%';
+    bdFill.style.width = pct + '%';
+    bdKnob.style.left = pct + '%';
+    if (ds !== lastBcDur){
+      lastBcDur = ds;
+      bcDur.textContent = ds;
+      bdTime.textContent = s + ' / ' + ds;
+    }
+  }
+}
+function fmt(s){
+  if (!isFinite(s)) return '0:00';
+  s = Math.max(0, Math.floor(s));
+  var m = Math.floor(s/60), r = s%60;
+  return m + ':' + (r < 10 ? '0' : '') + r;
+}
+
+/* ================= 播放列表 / 文件管理 ================= */
+var AUDIO_EXT = /\.(mp3|wav|flac|ogg|oga|m4a|aac|opus|webm|weba|mp4)$/i;
+var IMG_EXT = /\.(png|jpe?g|gif|webp|bmp|avif|svg)$/i;
+function isAudioFile(f){
+  return (f.type && f.type.indexOf('audio/') === 0) || AUDIO_EXT.test(f.name);
+}
+function isImageFile(f){
+  return (f.type && f.type.indexOf('image/') === 0) || IMG_EXT.test(f.name);
+}
+function cleanName(n){ return n.replace(/\.[^.]+$/, ''); }
+function addFiles(files){
+  var list = [], imgFile = null;
+  for (var i = 0; i < files.length; i++){
+    if (isAudioFile(files[i])) list.push(files[i]);
+    else if (!imgFile && isImageFile(files[i])) imgFile = files[i];
+  }
+  if (imgFile) applyBackgroundFile(imgFile);
+  if (!list.length){
+    if (!imgFile) toast('未找到可播放的音频文件');
+    return;
+  }
+  var wasEmpty = tracks.length === 0;
+  for (i = 0; i < list.length; i++){
+    tracks.push({ name: cleanName(list[i].name), url: URL.createObjectURL(list[i]) });
+  }
+  renderPlaylist();
+  if (wasEmpty) playIndex(0);
+  else toast('已添加 ' + list.length + ' 首');
+}
+/* 释放曲目 blob URL（防止长期使用的内存累积；正在播放的除外，切换后由下次调用清理） */
+function revokeTrackUrls(){
+  for (var i = 0; i < tracks.length; i++){
+    if (i === current) continue; /* 当前播放曲目的 URL 仍被 <audio> 引用 */
+    try { URL.revokeObjectURL(tracks[i].url); } catch (e) {}
+  }
+}
+/* 清空播放列表（播放列表面板中的入口，同时释放全部 blob URL） */
+function clearPlaylist(){
+  if (!tracks.length) return;
+  audio.pause();
+  audio.removeAttribute('src');
+  for (var i = 0; i < tracks.length; i++){
+    try { URL.revokeObjectURL(tracks[i].url); } catch (e) {}
+  }
+  tracks.length = 0;
+  current = -1;
+  try { localStorage.removeItem('mv.playlistNote'); } catch(e){}
+  renderPlaylist();
+  updateSongInfo();
+  toast('播放列表已清空');
+}
+function playIndex(i){
+  if (i < 0 || i >= tracks.length) return;
+  current = i;
+  ensureAudio();
+  if (actx && actx.state === 'suspended') actx.resume().catch(function(){});
+  if (beatReset){ /* 重置节拍检测，避免上一首节奏统计影响下一首 */
+    bassHist.length = 0;
+    beatPulse = 0;
+  }
+  audio.src = tracks[i].url;
+  tDur.textContent = '0:00';
+  audio.play().catch(function(){ toast('无法播放：' + tracks[i].name); });
+  renderPlaylist();
+  updateSongInfo();
+  if (autoOpenPl && tracks.length > 1) playlistEl.classList.add('open');
+}
+function next(){
+  if (!tracks.length) return;
+  playIndex((current+1) % tracks.length);
+}
+function prev(){
+  if (!tracks.length) return;
+  if (audio.currentTime > 3){ audio.currentTime = 0; return; }
+  playIndex((current-1+tracks.length) % tracks.length);
+}
+function togglePlay(){
+  if (!tracks.length){ fileInput.click(); return; }
+  ensureAudio();
+  if (actx && actx.state === 'suspended') actx.resume().catch(function(){});
+  if (audio.paused) audio.play().catch(function(){ toast('播放失败'); });
+  else audio.pause();
+}
+function updateSongInfo(){
+  if (current >= 0 && tracks[current]){
+    songTitle.textContent = tracks[current].name;
+    songSub.textContent = '第 ' + (current+1) + ' / ' + tracks.length + ' 首';
+    document.title = tracks[current].name + ' · 音乐可视化';
+  } else {
+    songTitle.textContent = '未加载音频';
+    songSub.textContent = '';
+    document.title = '音乐可视化';
+  }
+  updateBloggerCard();
+}
+function updateBloggerCard(){
+  if (current >= 0 && tracks[current]){
+    bcTitle.textContent = tracks[current].name;
+    bdTitle.textContent = tracks[current].name;
+    bcIndex.textContent = '第 ' + (current+1) + ' / ' + tracks.length + ' 首';
+    bdIndex.textContent = pad2(current+1) + ' / ' + pad2(tracks.length);
+  } else {
+    bcTitle.textContent = '未加载音频';
+    bdTitle.textContent = '未加载音频';
+    bcIndex.textContent = '';
+    bdIndex.textContent = '';
+  }
+  var nx = tracks.length > 1 ? '下一首 · ' + tracks[(current+1) % tracks.length].name : '';
+  bcNext.textContent = nx;
+  bdNext.textContent = nx;
+}
+function pad2(n){ return (n < 10 ? '0' : '') + n; }
+function renderPlaylist(){
+  plList.innerHTML = '';
+  if (!tracks.length){
+    var e = document.createElement('div');
+    e.className = 'pl-empty';
+    e.textContent = '播放列表为空，拖入音频文件试试';
+    plList.appendChild(e);
+  }
+  for (var i = 0; i < tracks.length; i++){
+    (function(i){
+      var el = document.createElement('div');
+      el.className = 'pl-item' + (i === current ? ' active' : '');
+      el.innerHTML = '<span class="pl-eq"><i></i><i></i><i></i></span><span class="pl-name"></span>';
+      el.querySelector('.pl-name').textContent = tracks[i].name;
+      el.addEventListener('click', function(){ playIndex(i); });
+      plList.appendChild(el);
+    })(i);
+  }
+  plCount.textContent = tracks.length ? tracks.length + ' 首' : '';
+  dropzone.style.display = tracks.length ? 'none' : 'flex';
+}
+
+/* ================= audio 元素事件 ================= */
+audio.addEventListener('ended', function(){ if (autoNext) next(); });
+audio.addEventListener('play', function(){
+  body.classList.add('playing'); updatePlayBtn();
+  bcState.textContent = '正在播放'; bdState.textContent = '正在播放';
+});
+audio.addEventListener('pause', function(){
+  body.classList.remove('playing'); updatePlayBtn();
+  bcState.textContent = '已暂停'; bdState.textContent = '已暂停';
+});
+audio.addEventListener('error', function(){ if (tracks.length) toast('无法播放该文件'); });
+audio.addEventListener('loadedmetadata', function(){ tDur.textContent = fmt(audio.duration); });
+audio.addEventListener('durationchange', function(){ tDur.textContent = fmt(audio.duration); });
+
+function updatePlayBtn(){
+  btnPlay.innerHTML = audio.paused ? ICONS.play : ICONS.pause;
+}
+
+/* ================= 进度条 ================= */
+var dragging = false;
+pTrack.addEventListener('pointerdown', function(e){
+  if (!tracks.length || !isFinite(audio.duration)) return;
+  dragging = true;
+  pTrack.setPointerCapture(e.pointerId);
+  seekToEvent(e);
+});
+pTrack.addEventListener('pointermove', function(e){ if (dragging) seekToEvent(e); });
+pTrack.addEventListener('pointerup', function(){ dragging = false; });
+pTrack.addEventListener('pointercancel', function(){ dragging = false; });
+function seekToEvent(e){
+  var r = pTrack.getBoundingClientRect();
+  var t = clampN((e.clientX - r.left)/r.width, 0, 1);
+  if (isFinite(audio.duration)) audio.currentTime = t*audio.duration;
+}
+
+/* ================= 音量 ================= */
+var prevVol = 0.85;
+function setVol(v){
+  v = clampN(v, 0, 1);
+  audio.volume = v;
+  audio.muted = false;
+  savePref('mv.vol', v);
+  updateVolUI();
+}
+function updateVolUI(){
+  var v = audio.muted ? 0 : audio.volume;
+  volRange.value = v;
+  var pct = v*100;
+  volRange.style.background = 'linear-gradient(90deg, var(--accent) ' + pct + '%, rgba(255,255,255,.16) ' + pct + '%)';
+  btnVol.innerHTML = (v === 0) ? ICONS.mute : ICONS.vol;
+}
+volRange.addEventListener('input', function(){ setVol(+volRange.value); });
+btnVol.addEventListener('click', function(){
+  if (audio.muted || audio.volume === 0){
+    audio.muted = false;
+    if (audio.volume === 0) audio.volume = prevVol || 0.85;
+  } else {
+    prevVol = audio.volume;
+    audio.muted = true;
+  }
+  updateVolUI();
+});
+
+/* ================= 灵敏度 ================= */
+function setSens(v){
+  sens = clampN(v, 0.4, 2.5);
+  savePref('mv.sens', sens);
+  sensRange.value = sens;
+  var pct = (sens-0.4)/(2.5-0.4)*100;
+  sensRange.style.background = 'linear-gradient(90deg, var(--accent) ' + pct + '%, rgba(255,255,255,.16) ' + pct + '%)';
+}
+sensRange.addEventListener('input', function(){ setSens(+sensRange.value); });
+
+/* ================= 博主模式（录屏） ================= */
+function applyBlLayout(){
+  body.classList.toggle('bl-dispersed', blLayout === 'dispersed');
+  body.classList.toggle('bl-top', blLayout === 'top');
+}
+function toggleBloggerLayout(){
+  blLayout = blLayout === 'dispersed' ? 'top' : 'dispersed';
+  savePref('mv.blLayout', blLayout === 'top' ? 1 : 0);
+  applyBlLayout();
+  toast(blLayout === 'dispersed' ? '博主模式 · 分散式' : '博主模式 · 顶部卡片');
+}
+function toggleBlogger(){
+  bloggerOn = !bloggerOn;
+  body.classList.toggle('blogger', bloggerOn);
+  btnBlogger.classList.toggle('on', bloggerOn);
+  savePref('mv.blogger', bloggerOn ? 1 : 0);
+  if (bloggerOn){
+    updateBloggerCard();
+    toast(blLayout === 'dispersed' ? '博主模式 · 分散式 (Shift+B 切换布局)' : '博主模式 · 顶部卡片 (Shift+B 切换布局)');
+  } else {
+    toast('已退出博主模式');
+  }
+}
+btnBlogger.addEventListener('click', toggleBlogger);
+
+/* ================= 模式 / 主题 ================= */
+function buildModeButtons(){
+  modesEl.innerHTML = '';
+  for (var i = 0; i < MODE_NAMES.length; i++){
+    (function(i){
+      var b = document.createElement('button');
+      b.className = 'mode-btn';
+      b.innerHTML = '<span class="m-name">' + MODE_NAMES[i] + '</span><span class="m-num">' + (i+1) + '</span>';
+      b.addEventListener('click', function(){ setMode(i); });
+      modesEl.appendChild(b);
+    })(i);
+  }
+}
+function setMode(i){
+  mode = i;
+  savePref('mv.mode', i);
+  trailCtx.clearRect(0, 0, trailCv.width, trailCv.height); /* 切换模式时清除残影 */
+  var btns = modesEl.children;
+  for (var k = 0; k < btns.length; k++) btns[k].classList.toggle('active', k === i);
+}
+function buildThemeDots(){
+  themesEl.innerHTML = '';
+  for (var i = 0; i < THEMES.length; i++){
+    (function(i){
+      var d = document.createElement('button');
+      d.className = 'theme-dot';
+      d.title = THEMES[i].name;
+      var cs = THEMES[i].colors;
+      d.style.background = 'linear-gradient(135deg,' + cs[0] + ',' + cs[1] + ' 55%,' + cs[2] + ')';
+      d.addEventListener('click', function(){ setTheme(i); });
+      themesEl.appendChild(d);
+    })(i);
+  }
+}
+function setTheme(i){
+  themeIdx = i;
+  savePref('mv.theme', i);
+  var dots = themesEl.children;
+  for (var k = 0; k < dots.length; k++) dots[k].classList.toggle('active', k === i);
+  applyAccent();
+  off = null; /* 瀑布图底色跟随主题重建 */
+}
+/* 当前生效的配色：开启"从背景提取主题色"且有背景图时用提取色，否则用所选主题 */
+function getColors(){
+  return (bgExtract && autoTheme) ? autoTheme.colors : THEMES[themeIdx].colors;
+}
+function getBg(){
+  return (bgExtract && autoTheme) ? autoTheme.bg : THEMES[themeIdx].bg;
+}
+function applyAccent(){
+  var cs = getColors();
+  document.documentElement.style.setProperty('--accent', cs[1]);
+  document.documentElement.style.setProperty('--accent2', cs[2]);
+}
+
+/* ================= 背景图片 / 设置 ================= */
+function boostSat(r, g, b){
+  var mx = Math.max(r, g, b), mn = Math.min(r, g, b), l = (mx+mn)/2, f = 1.18;
+  return [clampN(Math.round(l+(r-l)*f), 0, 255), clampN(Math.round(l+(g-l)*f), 0, 255), clampN(Math.round(l+(b-l)*f), 0, 255)];
+}
+function toHex(c){
+  var s = '#';
+  for (var i = 0; i < 3; i++){ var h = c[i].toString(16); s += h.length < 2 ? '0'+h : h; }
+  return s;
+}
+/* 主色提取：缩图 → 分桶计数 → 挑 3 个差异明显的颜色（按亮度排序成渐变） */
+function extractTheme(img){
+  var S = 48, cv = document.createElement('canvas');
+  cv.width = S; cv.height = S;
+  var c2 = cv.getContext('2d', { willReadFrequently: true });
+  c2.drawImage(img, 0, 0, S, S);
+  var d = c2.getImageData(0, 0, S, S).data;
+  var buckets = {};
+  for (var i = 0; i < d.length; i += 4){
+    var r = d[i], g = d[i+1], b = d[i+2];
+    if (d[i+3] < 128) continue;
+    var lum = (Math.max(r, g, b) + Math.min(r, g, b))/2;
+    if (lum < 26 || lum > 234) continue; /* 跳过近黑/近白 */
+    var key = (r>>5) + ',' + (g>>5) + ',' + (b>>5);
+    if (!buckets[key]) buckets[key] = { n:0, r:0, g:0, b:0 };
+    var bk = buckets[key]; bk.n++; bk.r += r; bk.g += g; bk.b += b;
+  }
+  var arr = [];
+  for (var k in buckets) arr.push(buckets[k]);
+  if (!arr.length) return null;
+  arr.sort(function(a, b){ return b.n - a.n; });
+  function avg(p){ return [p.r/p.n, p.g/p.n, p.b/p.n]; }
+  function dist(a, b){
+    var A = avg(a), B = avg(b);
+    return (A[0]-B[0])*(A[0]-B[0]) + (A[1]-B[1])*(A[1]-B[1]) + (A[2]-B[2])*(A[2]-B[2]);
+  }
+  var picks = [];
+  for (i = 0; i < arr.length && picks.length < 3; i++){
+    var ok = true;
+    for (var j = 0; j < picks.length; j++) if (dist(arr[i], picks[j]) < 5200){ ok = false; break; }
+    if (ok) picks.push(arr[i]);
+  }
+  while (picks.length < 3) picks.push(arr[0]);
+  picks.sort(function(a, b){ return (a.r+a.g+a.b)/a.n - (b.r+b.g+b.b)/b.n; });
+  var colors = picks.map(function(p){
+    return toHex(boostSat(Math.round(p.r/p.n), Math.round(p.g/p.n), Math.round(p.b/p.n)));
+  });
+  var dom = avg(arr[0]);
+  return { colors: colors, bg: [Math.round(dom[0]*0.14), Math.round(dom[1]*0.14), Math.round(dom[2]*0.18)] };
+}
+function setBgDataUrl(url, silent){
+  var img = new Image();
+  img.onload = function(){
+    bgUrl = url; bgImg = img;
+    bgLayer.style.backgroundImage = 'url("' + url + '")';
+    bgLayer.classList.add('on');
+    bgDim.classList.add('on');
+    autoTheme = extractTheme(img);
+    applyAccent();
+    off = null;
+    if (!silent) toast('背景已设置');
+  };
+  img.onerror = function(){ toast('无法加载该图片'); };
+  img.src = url;
+}
+function applyBackgroundFile(file){
+  var rd = new FileReader();
+  rd.onload = function(){
+    try { localStorage.setItem('mv.bg', rd.result); }
+    catch(e){ toast('背景图片较大，已应用但刷新后不会保留'); }
+    setBgDataUrl(rd.result);
+  };
+  rd.readAsDataURL(file);
+}
+function clearBackground(){
+  bgUrl = null; bgImg = null; autoTheme = null;
+  bgLayer.classList.remove('on');
+  bgLayer.style.backgroundImage = '';
+  bgDim.classList.remove('on');
+  try { localStorage.removeItem('mv.bg'); } catch(e){}
+  applyAccent();
+  off = null;
+  toast('背景已清除');
+}
+function setBlur(amt){
+  blurAmt = clampN(+amt || 0, 0, 40);
+  if (blurAmt > 0){
+    bgLayer.style.filter = 'blur(' + blurAmt + 'px)';
+    bgLayer.style.transform = 'scale(' + (1 + blurAmt*0.006).toFixed(3) + ')';
+  } else {
+    bgLayer.style.filter = '';
+    bgLayer.style.transform = '';
+  }
+  stBlur.value = blurAmt;
+  stBlurVal.textContent = blurAmt > 0 ? blurAmt + 'px' : '关';
+  savePref('mv.blurAmt', blurAmt);
+}
+function setBgExtract(on){
+  bgExtract = !!on;
+  stExtract.checked = bgExtract;
+  savePref('mv.bgExtract', bgExtract ? 1 : 0);
+  applyAccent();
+  off = null;
+}
+
+/* ================= 博主信息层大小 ================= */
+var ovScale = clampN(loadPref('mv.ovScale', 1), 0.6, 1.6);
+function setOvScale(v){
+  ovScale = clampN(+v || 1, 0.6, 1.6);
+  document.body.style.setProperty('--ov-scale', ovScale);
+  savePref('mv.ovScale', ovScale);
+  stOvs.value = ovScale;
+  stOvsVal.textContent = Math.round(ovScale*100) + '%';
+}
+stOvs.addEventListener('input', function(){ setOvScale(+stOvs.value); });
+
+/* ================= 扩展设置项 ================= */
+/* 外观 */
+var dimAmt = loadPref('mv.bgDim', 0.42);
+function setDim(v){
+  dimAmt = clampN(+v || 0, 0, 0.8);
+  bgDim.style.background = 'rgba(5,3,10,' + dimAmt + ')';
+  savePref('mv.bgDim', dimAmt);
+  stDim.value = dimAmt;
+  stDimVal.textContent = Math.round(dimAmt*100) + '%';
+}
+stDim.addEventListener('input', function(){ setDim(+stDim.value); });
+
+/* 可视化 */
+var trailAmt = loadPref('mv.trail', 0.45);
+function setTrail(v){
+  trailAmt = clampN(+v || 0, 0, 0.6);
+  savePref('mv.trail', trailAmt);
+  stTrail.value = trailAmt;
+  stTrailVal.textContent = Math.round(trailAmt*100) + '%';
+  resetVizState();
+}
+stTrail.addEventListener('input', function(){ setTrail(+stTrail.value); });
+
+var peakSpeed = loadPref('mv.peak', 0.005);
+function setPeak(v){
+  peakSpeed = clampN(+v || 0, 0, 0.02);
+  savePref('mv.peak', peakSpeed);
+  stPeak.value = peakSpeed;
+  stPeakVal.textContent = peakSpeed.toFixed(3);
+}
+stPeak.addEventListener('input', function(){ setPeak(+stPeak.value); });
+
+var beatAmt = loadPref('mv.beat', 1);
+function setBeat(v){
+  beatAmt = clampN(+v || 0, 0, 3);
+  savePref('mv.beat', beatAmt);
+  stBeat.value = beatAmt;
+  stBeatVal.textContent = Math.round(beatAmt*100) + '%';
+}
+stBeat.addEventListener('input', function(){ setBeat(+stBeat.value); });
+
+var rotAmt = loadPref('mv.rot', 1);
+function setRot(v){
+  rotAmt = clampN(+v || 0, 0, 4);
+  savePref('mv.rot', rotAmt);
+  stRot.value = rotAmt;
+  stRotVal.textContent = Math.round(rotAmt*100) + '%';
+}
+stRot.addEventListener('input', function(){ setRot(+stRot.value); });
+
+var orbCount = loadPref('mv.orb', 240)|0;
+function setOrb(v){
+  orbCount = clampN(Math.round(+v || 240), 60, 600);
+  savePref('mv.orb', orbCount);
+  stOrb.value = orbCount;
+  stOrbVal.textContent = orbCount;
+  orbiters.length = 0; /* 重建粒子群 */
+  proOrb.length = 0;
+  proBurst.length = 0;
+}
+stOrb.addEventListener('input', function(){ setOrb(+stOrb.value); });
+
+var smoothAmt = loadPref('mv.smooth', 0.8);
+function setSmooth(v){
+  smoothAmt = clampN(+v || 0.8, 0.5, 0.95);
+  if (analyser) analyser.smoothingTimeConstant = smoothAmt;
+  savePref('mv.smooth', smoothAmt);
+  stSmooth.value = smoothAmt;
+  stSmoothVal.textContent = smoothAmt.toFixed(2);
+}
+stSmooth.addEventListener('input', function(){ setSmooth(+stSmooth.value); });
+
+var reflectOn = loadPref('mv.reflect', 1) === 1;
+function setReflect(on){
+  reflectOn = !!on;
+  stReflect.checked = reflectOn;
+  savePref('mv.reflect', reflectOn ? 1 : 0);
+}
+stReflect.addEventListener('change', function(){ setReflect(stReflect.checked); });
+
+var dotAnim = loadPref('mv.dot', 1) === 1;
+function setDotAnim(on){
+  dotAnim = !!on;
+  stDot.checked = dotAnim;
+  savePref('mv.dot', dotAnim ? 1 : 0);
+  var dots = document.querySelectorAll('.bc-dot');
+  for (var i = 0; i < dots.length; i++) dots[i].style.animationPlayState = dotAnim ? 'running' : 'paused';
+}
+stDot.addEventListener('change', function(){ setDotAnim(stDot.checked); });
+
+var marqueeOn = loadPref('mv.marquee', 0) === 1;
+var marqueeOffset = 0;
+setInterval(function(){ /* 标题跑马灯 */
+  if (!marqueeOn || current < 0 || !tracks[current]) return;
+  var t = tracks[current].name + '　';
+  marqueeOffset = (marqueeOffset + 1) % t.length;
+  document.title = t.slice(marqueeOffset) + t.slice(0, marqueeOffset);
+}, 500);
+function setMarquee(on){
+  marqueeOn = !!on;
+  stMarquee.checked = marqueeOn;
+  savePref('mv.marquee', marqueeOn ? 1 : 0);
+  if (!marqueeOn && current >= 0 && tracks[current]){
+    document.title = tracks[current].name + ' · 音乐可视化';
+  }
+}
+stMarquee.addEventListener('change', function(){ setMarquee(stMarquee.checked); });
+
+/* 播放 */
+var idleDelay = loadPref('mv.idle', 3.5);
+function setIdle(v){
+  idleDelay = clampN(+v || 0, 0, 10);
+  savePref('mv.idle', idleDelay);
+  stIdle.value = idleDelay;
+  stIdleVal.textContent = idleDelay + 's';
+  if (idleDelay === 0) body.classList.remove('idle');
+}
+stIdle.addEventListener('input', function(){ setIdle(+stIdle.value); });
+
+var autoNext = loadPref('mv.autonext', 1) === 1;
+function setAutoNext(on){
+  autoNext = !!on;
+  stAutoNext.checked = autoNext;
+  savePref('mv.autonext', autoNext ? 1 : 0);
+}
+stAutoNext.addEventListener('change', function(){ setAutoNext(stAutoNext.checked); });
+
+var beatReset = loadPref('mv.beatreset', 1) === 1;
+function setBeatReset(on){
+  beatReset = !!on;
+  stBeatReset.checked = beatReset;
+  savePref('mv.beatreset', beatReset ? 1 : 0);
+}
+stBeatReset.addEventListener('change', function(){ setBeatReset(stBeatReset.checked); });
+
+var barStyle = loadPref('mv.barstyle', 'knob');
+function setBarStyle(v){
+  barStyle = v === 'plain' ? 'plain' : 'knob';
+  pKnob.style.display = barStyle === 'knob' ? '' : 'none';
+  savePref('mv.barstyle', barStyle);
+  stBarStyle.value = barStyle;
+}
+stBarStyle.addEventListener('change', function(){ setBarStyle(stBarStyle.value); });
+
+var autoOpenPl = loadPref('mv.autoopen', 0) === 1;
+function setAutoOpen(on){
+  autoOpenPl = !!on;
+  stAutoOpen.checked = autoOpenPl;
+  savePref('mv.autoopen', autoOpenPl ? 1 : 0);
+}
+stAutoOpen.addEventListener('change', function(){ setAutoOpen(stAutoOpen.checked); });
+
+/* 导出（全局默认，video-export.js 读取 localStorage） */
+function bindSel(id, key, def){
+  var el2 = $(id);
+  el2.value = loadPref(key, def);
+  el2.addEventListener('change', function(){ savePref(key, el2.value); });
+}
+function bindRange(id, valId, key, def, fmt){
+  var el2 = $(id), vEl = $(valId);
+  var v = loadPref(key, def);
+  el2.value = v; vEl.textContent = fmt(v);
+  el2.addEventListener('input', function(){
+    savePref(key, el2.value);
+    vEl.textContent = fmt(el2.value);
+  });
+}
+/* 预设选择（stPreset 已在上方元素引用区声明） */
+stPreset.value = presetState;
+stPreset.addEventListener('change', function(){
+  presetState = stPreset.value;
+  savePref('mv.preset', presetState);
+  applyPreset();
+});
+
+bindSel('st-yield', 'mv.exp.yield', '60');
+bindSel('st-rc', 'mv.exp.rc', 'constant');
+bindRange('st-gop', 'st-gop-val', 'mv.exp.gop', 2, function(v){ return (+v) + 's'; });
+bindSel('st-preset', 'mv.exp.preset', 'veryfast');
+bindSel('st-chroma', 'mv.exp.chroma', '4:2:0');
+/* HDR 由下方 checkbox 单独绑定（bindSel 仅用于下拉框） */
+stHdr.checked = loadPref('mv.exp.hdr', 0) === '1';
+stHdr.addEventListener('change', function(){ savePref('mv.exp.hdr', stHdr.checked ? '1' : '0'); });
+bindRange('st-nits', 'st-nits-val', 'mv.exp.nits', 800, function(v){ return String(v); });
+stFastStart.checked = loadPref('mv.exp.faststart', 1) === '1';
+stFastStart.addEventListener('change', function(){ savePref('mv.exp.faststart', stFastStart.checked ? '1' : '0'); });
+bindSel('st-resample', 'mv.exp.resample', '48000');
+bindSel('st-channels', 'mv.exp.channels', '0');
+bindSel('st-log', 'mv.exp.log', 'quiet');
+stCacheBg.checked = loadPref('mv.exp.cachebg', 1) === '1';
+stCacheBg.addEventListener('change', function(){ savePref('mv.exp.cachebg', stCacheBg.checked ? '1' : '0'); });
+
+/* 重置 */
+stResetBtn.addEventListener('click', function(){
+  try {
+    var keep = [];
+    for (var i = 0; i < localStorage.length; i++){
+      var k = localStorage.key(i);
+      if (k && k.indexOf('mv.') === 0) keep.push(k);
+    }
+    keep.forEach(function(k){ localStorage.removeItem(k); });
+  } catch(e){}
+  toast('已重置，即将刷新…');
+  setTimeout(function(){ location.reload(); }, 900);
+});
+
+/* 设置面板标签页切换 */
+var stTabs = document.querySelectorAll('.st-tab');
+stTabs.forEach(function(t){
+  t.addEventListener('click', function(){
+    stTabs.forEach(function(x){ x.classList.remove('active'); });
+    document.querySelectorAll('.st-pane').forEach(function(p){ p.classList.remove('active'); });
+    t.classList.add('active');
+    var pane = $(t.dataset.pane);
+    if (pane) pane.classList.add('active');
+  });
+});
+function toggleSettings(force){
+  var open = typeof force === 'boolean' ? force : !settingsEl.classList.contains('open');
+  settingsEl.classList.toggle('open', open);
+  stBackdrop.classList.toggle('open', open);
+}
+btnSettings.addEventListener('click', toggleSettings);
+stBackdrop.addEventListener('click', function(){ toggleSettings(false); });
+stClose.addEventListener('click', function(){ toggleSettings(false); });
+stBgPick.addEventListener('click', function(){ bgInput.click(); });
+stBgClear.addEventListener('click', clearBackground);
+stBlur.addEventListener('input', function(){ setBlur(+stBlur.value); });
+stExtract.addEventListener('change', function(){ setBgExtract(stExtract.checked); });
+bgInput.addEventListener('change', function(){
+  if (bgInput.files && bgInput.files[0]) applyBackgroundFile(bgInput.files[0]);
+  bgInput.value = '';
+});
+
+/* ================= 播放列表面板 / 全屏 ================= */
+function togglePlaylist(){ playlistEl.classList.toggle('open'); }
+btnPl.addEventListener('click', togglePlaylist);
+function toggleFS(){
+  var el = document.documentElement;
+  if (document.fullscreenElement || document.webkitFullscreenElement){
+    if (document.exitFullscreen) document.exitFullscreen();
+    else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
+  } else {
+    if (el.requestFullscreen) el.requestFullscreen().catch(function(){});
+    else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
+  }
+}
+btnFs.addEventListener('click', toggleFS);
+function onFSChange(){
+  btnFs.innerHTML = (document.fullscreenElement || document.webkitFullscreenElement) ? ICONS.fsExit : ICONS.fs;
+}
+document.addEventListener('fullscreenchange', onFSChange);
+document.addEventListener('webkitfullscreenchange', onFSChange); /* Safari */
+
+/* ================= 文件选择 / 拖放 ================= */
+fileInput.addEventListener('change', function(){
+  if (fileInput.files.length) addFiles(fileInput.files);
+  fileInput.value = '';
+});
+dropzone.addEventListener('click', function(){ fileInput.click(); });
+btnPick.addEventListener('click', function(e){ e.stopPropagation(); fileInput.click(); });
+canvas.addEventListener('click', function(){ if (tracks.length) togglePlay(); });
+
+var dragDepth = 0;
+window.addEventListener('dragenter', function(e){
+  e.preventDefault();
+  dragDepth++;
+  dragActive.classList.add('on');
+});
+window.addEventListener('dragover', function(e){ e.preventDefault(); });
+window.addEventListener('dragleave', function(e){
+  e.preventDefault();
+  dragDepth = Math.max(0, dragDepth-1);
+  if (!dragDepth) dragActive.classList.remove('on');
+});
+window.addEventListener('drop', function(e){
+  e.preventDefault();
+  dragDepth = 0;
+  dragActive.classList.remove('on');
+  if (e.dataTransfer && e.dataTransfer.files.length) addFiles(e.dataTransfer.files);
+});
+
+/* ================= 快捷键 ================= */
+window.addEventListener('keydown', function(e){
+  activity();
+  if (window.MVExport && window.MVExport.isOpen()){
+    if (e.code === 'Escape') window.MVExport.close();
+    return;
+  }
+  if (e.target.tagName === 'INPUT' && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) return;
+  switch (e.code){
+    case 'Space': e.preventDefault(); togglePlay(); break;
+    case 'ArrowRight':
+      e.preventDefault();
+      if (isFinite(audio.duration)) audio.currentTime = Math.min(audio.duration, audio.currentTime + 5);
+      break;
+    case 'ArrowLeft':
+      e.preventDefault();
+      audio.currentTime = Math.max(0, audio.currentTime - 5);
+      break;
+    case 'ArrowUp': e.preventDefault(); setVol(audio.volume + 0.05); break;
+    case 'ArrowDown': e.preventDefault(); setVol(audio.volume - 0.05); break;
+    case 'Digit1': case 'Digit2': case 'Digit3': case 'Digit4': case 'Digit5':
+      if (e.shiftKey){
+        presetState = presetState === 'pro' ? 'classic' : 'pro';
+        savePref('mv.preset', presetState);
+        applyPreset();
+        toast(presetState === 'pro' ? '预设: Pro（高级视觉）' : '预设: 经典');
+      } else { setMode(+e.code.slice(5) - 1); }
+      break;
+    case 'KeyF': toggleFS(); break;
+    case 'KeyL': togglePlaylist(); break;
+    case 'KeyS': toggleSettings(); break;
+    case 'KeyR': openRender(); break;
+    case 'KeyB':
+      if (e.shiftKey) toggleBloggerLayout();
+      else toggleBlogger();
+      break;
+    case 'BracketLeft':
+      setSens(sens - 0.1);
+      toast('灵敏度 ' + sens.toFixed(2));
+      break;
+    case 'BracketRight':
+      setSens(sens + 0.1);
+      toast('灵敏度 ' + sens.toFixed(2));
+      break;
+    case 'Escape':
+      if (settingsEl.classList.contains('open')) toggleSettings(false);
+      else if (bloggerOn) toggleBlogger();
+      else playlistEl.classList.remove('open');
+      break;
+  }
+});
+
+/* ================= 沉浸模式（静止自动隐藏 UI） ================= */
+function activity(){
+  lastActivity = performance.now();
+  body.classList.remove('idle');
+}
+window.addEventListener('mousemove', activity);
+window.addEventListener('mousedown', activity);
+window.addEventListener('touchstart', activity);
+setInterval(function(){
+  var playing = tracks.length && !audio.paused;
+  if (playing && idleDelay > 0 && performance.now() - lastActivity > idleDelay*1000) body.classList.add('idle');
+}, 500);
+
+/* ================= 提示气泡 ================= */
+var toastTimer = 0;
+function toast(msg){
+  toastEl.textContent = msg;
+  toastEl.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(function(){ toastEl.classList.remove('show'); }, 2200);
+}
+
+/* ================= 控件事件 ================= */
+btnPlay.addEventListener('click', togglePlay);
+btnPrev.addEventListener('click', prev);
+btnNext.addEventListener('click', next);
+
+/* ================= 尺寸自适应 ================= */
+function resize(){
+  dpr = Math.min(window.devicePixelRatio || 1, 2);
+  W = window.innerWidth;
+  H = window.innerHeight;
+  canvas.width = Math.round(W*dpr);
+  canvas.height = Math.round(H*dpr);
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  trailCv.width = canvas.width;
+  trailCv.height = canvas.height;
+}
+window.addEventListener('resize', resize);
+
+/* ================= 启动 ================= */
+btnPrev.innerHTML = ICONS.prev;
+btnNext.innerHTML = ICONS.next;
+btnPl.innerHTML = ICONS.list;
+btnFs.innerHTML = ICONS.fs;
+btnSens.innerHTML = ICONS.signal;
+btnBlogger.innerHTML = ICONS.video;
+btnSettings.innerHTML = ICONS.gear;
+btnRender.innerHTML = ICONS.film;
+var btnPreset = $('btn-preset');
+btnPreset.innerHTML = ICONS.star;
+btnPreset.classList.toggle('on', presetState === 'pro');
+btnPreset.addEventListener('click', function(){
+  presetState = presetState === 'pro' ? 'classic' : 'pro';
+  savePref('mv.preset', presetState);
+  applyPreset();
+  btnPreset.classList.toggle('on', presetState === 'pro');
+  stPreset.value = presetState;
+  toast(presetState === 'pro' ? '预设: Pro（高级视觉）' : '预设: 经典');
+});
+buildModeButtons();
+buildThemeDots();
+setMode(mode);
+setTheme(themeIdx);
+setVol(clampN(loadPref('mv.vol', 0.85), 0, 1));
+setSens(sens);
+setBlur(blurAmt);
+setDim(dimAmt);
+setTrail(trailAmt);
+setPeak(peakSpeed);
+setBeat(beatAmt);
+setRot(rotAmt);
+setOrb(orbCount);
+setSmooth(smoothAmt);
+setReflect(reflectOn);
+setDotAnim(dotAnim);
+setMarquee(marqueeOn);
+setIdle(idleDelay);
+setAutoNext(autoNext);
+setBeatReset(beatReset);
+setBarStyle(barStyle);
+setAutoOpen(autoOpenPl);
+setOvScale(ovScale);
+setBgExtract(bgExtract);
+try {
+  var savedBg = localStorage.getItem('mv.bg');
+  if (savedBg) setBgDataUrl(savedBg, true);
+} catch(e){}
+if (loadPref('mv.blogger', 0)){
+  bloggerOn = true;
+  body.classList.add('blogger');
+  btnBlogger.classList.add('on');
+}
+applyBlLayout();
+updatePlayBtn();
+updateVolUI();
+updateSongInfo();
+renderPlaylist();
+resize();
+requestAnimationFrame(frame);
+
+/* ============================================================
+ * 离线视频导出桥接（供 js/video-export.js 使用）
+ *
+ * 设计思路：ve.js 需要复用 index.html 的全部可视化渲染管线
+ * （renderers、分频器、节拍检测、状态变量）而不能另写一套，
+ * 否则修改一种可视化模式就要两边同步维护。因此 index.html
+ * 暴露 window.__MVBRIDGE 对象，ve.js 在每帧渲染时调用：
+ *   prepareExport(canvas,w,h)  → 切换到"导出画布"，接管 ctx/W/H，
+ *                                 重置状态，暂停实时渲染（exporting=true）
+ *   setAnalysisFrame(freq,time,tMs) → 注入离线 FFT 分析结果（代替实时 AnalyserNode）
+ *   getRenderer()              → 当前可视化渲染器函数（renderers[mode]）
+ *   endFrame()                 → 帧结束回调，把当前画布拷贝到残影缓冲
+ *   finishExport()             → 恢复实时渲染，重置 ctx/W/H 指回主画布
+ *   getBlLayout / getOverlayScale / getVizState / getBgState → 导出参数一致性
+ *
+ * 导出完成后 restore → 实时渲染立即接管，用户无感。
+ * ============================================================ */
+var mainCtxRef = ctx;
+function resetVizState(){
+  orbiters.length = 0;
+  bursts.length = 0;
+  waveHist.length = 0;
+  off = null;
+  for (var i = 0; i < BANDS; i++){ peaks[i] = 0; bandsArr[i] = 0; trailVals[i] = 0; }
+  bassHist.length = 0;
+  beatPulse = 0; lastBeatTime = 0; newBeat = false;
+  level = 0; energy = 0; frameCount = 0;
+  trailCtx.clearRect(0, 0, trailCv.width, trailCv.height);
+}
+window.__MVBRIDGE = {
+  getTrackInfo: function(){
+    if (current < 0 || !tracks[current]) return null;
+    return {
+      name: tracks[current].name,
+      url: tracks[current].url,
+      index: current, count: tracks.length,
+      nextName: tracks.length > 1 ? tracks[(current+1) % tracks.length].name : ''
+    };
+  },
+  decodeAudio: function(arrayBuffer){
+    ensureAudio();
+    return actx.decodeAudioData(arrayBuffer);
+  },
+  getRenderer: function(){ return getCurrentRenderer()[mode]; },
+  getPreset: function(){ return presetState; },
+  endFrame: endFrame,
+  isBlogger: function(){ return bloggerOn; },
+  getBlLayout: function(){ return blLayout; },
+  getOverlayScale: function(){ return ovScale; },
+  /* 可视化参数（导出渲染与实时预览保持一致） */
+  getVizState: function(){
+    return { trail: trailAmt, peak: peakSpeed, beat: beatAmt, rot: rotAmt,
+             orb: orbCount, smooth: smoothAmt, reflect: reflectOn };
+  },
+  getAccentColors: function(){ return getColors().slice(1); },
+  getBgColor: function(){ return rgbStr(getBg(), 1); },
+  getBgState: function(){ return { url: bgUrl, blur: blurAmt, dim: dimAmt }; },
+  fmtTime: fmt,
+  prepareExport: function(cv, w, h){
+    ensureAudio();
+    exporting = true;
+    cv.width = w; cv.height = h;
+    var ectx = cv.getContext('2d');
+    ectx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx = ectx; W = w; H = h; dpr = 1;
+    trailCv.width = w; trailCv.height = h;
+    resetVizState();
+  },
+  setAnalysisFrame: function(freq, time, tMs){
+    freqData.set(freq);
+    timeData.set(time);
+    frameCount++;
+    level = computeBands();
+    energy += (level - energy)*0.1;
+    detectBeat(tMs);
+  },
+  finishExport: function(){
+    ctx = mainCtxRef;
+    resize();
+    resetVizState();
+    exporting = false;
+  }
+};
+
+function openRender(){
+  if (window.MVExport) window.MVExport.open();
+  else toast('视频导出模块未加载');
+}
+btnRender.addEventListener('click', openRender);
+
+})();
+</script>
+<script src="js/offline-analysis.js"></script>
+<script src="js/overlay-render.js"></script>
+<script src="js/video-export.js"></script>
+</body>
+</html>
