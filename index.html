@@ -476,7 +476,7 @@ body.blogger #topbar,body.blogger #controls,body.blogger #playlist,body.blogger 
 
 <!-- 播放列表侧栏 -->
 <aside id="playlist" class="chrome">
-  <div class="pl-head"><span>播放列表</span><span style="display:flex;align-items:center;gap:10px;"><span id="pl-count"></span><button id="pl-clear" title="清空列表并释放内存" style="color:#8b86a8;font-size:11px;padding:2px 6px;border-radius:5px;">清空</button></span></div>
+  <div class="pl-head"><span>播放列表</span><span style="display:flex;align-items:center;gap:10px;"><span id="pl-count"></span><button id="pl-add" title="添加音频文件" style="color:var(--accent2);font-size:11px;padding:2px 8px;border-radius:5px;border:1px solid rgba(255,255,255,.15);">＋ 添加</button><button id="pl-clear" title="清空列表并释放内存" style="color:#8b86a8;font-size:11px;padding:2px 6px;border-radius:5px;">清空</button></span></div>
   <div id="pl-list"></div>
 </aside>
 
@@ -489,6 +489,7 @@ body.blogger #topbar,body.blogger #controls,body.blogger #playlist,body.blogger 
   </div>
   <div id="ctrl-row">
     <div class="ctrl-group">
+      <button id="btn-add" class="icon-btn" title="添加音乐"></button>
       <button id="btn-pl" class="icon-btn" title="播放列表 (L)"></button>
       <div id="vol-wrap">
         <button id="btn-vol" class="icon-btn" title="静音"></button>
@@ -797,6 +798,7 @@ var songTitle = $('song-title'), songSub = $('song-sub');
 var modesEl = $('modes'), themesEl = $('themes');
 var playlistEl = $('playlist'), plList = $('pl-list'), plCount = $('pl-count');
 $('pl-clear').addEventListener('click', clearPlaylist);
+$('pl-add').addEventListener('click', function(){ fileInput.click(); });
 var tCur = $('t-cur'), tDur = $('t-dur');
 var pTrack = $('p-track'), pFill = $('p-fill'), pKnob = $('p-knob');
 var btnPlay = $('btn-play'), btnPrev = $('btn-prev'), btnNext = $('btn-next');
@@ -843,6 +845,7 @@ var ICONS = {
   fs:'<svg viewBox="0 0 24 24"><path d="M4 9V4h5v2H6v3H4zM15 4h5v5h-2V6h-3V4zM4 15h2v3h3v2H4v-5zM17 15h3v5h-5v-2h3v-3z"/></svg>',
   fsExit:'<svg viewBox="0 0 24 24"><path d="M9 4v5H4V7h3V4h2zM15 4h2v3h3v2h-5V4zM4 15h5v5H7v-3H4v-2zM15 15h5v2h-3v3h-2v-5z"/></svg>',
   list:'<svg viewBox="0 0 24 24"><path d="M4 6h2.2v2.2H4zM8.2 6H20v2.2H8.2zM4 10.9h2.2v2.2H4zM8.2 10.9H20v2.2H8.2zM4 15.8h2.2V18H4zM8.2 15.8H20V18H8.2z"/></svg>',
+  plus:'<svg viewBox="0 0 24 24"><path d="M11 5h2v6h6v2h-6v6h-2v-6H5v-2h6z"/></svg>',
   signal:'<svg viewBox="0 0 24 24"><path d="M4 18h2.6v-5.2H4zM8.7 18h2.6V9H8.7zM13.4 18H16V5h-2.6z"/></svg>',
   video:'<svg viewBox="0 0 24 24"><path d="M2.5 7A2.5 2.5 0 0 1 5 4.5h8A2.5 2.5 0 0 1 15.5 7v1.7l4.1-2.6a.8.8 0 0 1 1.4.7v10.4a.8.8 0 0 1-1.4.7l-4.1-2.6V17A2.5 2.5 0 0 1 13 19.5H5A2.5 2.5 0 0 1 2.5 17z"/></svg>',
   gear:'<svg viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.49.49 0 0 0-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54a.48.48 0 0 0-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96a.49.49 0 0 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58a.49.49 0 0 0-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6A3.61 3.61 0 0 1 8.4 12c0-1.98 1.62-3.6 3.6-3.6s3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>',
@@ -2560,6 +2563,8 @@ window.addEventListener('resize', resize);
 btnPrev.innerHTML = ICONS.prev;
 btnNext.innerHTML = ICONS.next;
 btnPl.innerHTML = ICONS.list;
+$('btn-add').innerHTML = ICONS.plus;
+$('btn-add').addEventListener('click', function(){ fileInput.click(); });
 btnFs.innerHTML = ICONS.fs;
 btnSens.innerHTML = ICONS.signal;
 btnBlogger.innerHTML = ICONS.video;
