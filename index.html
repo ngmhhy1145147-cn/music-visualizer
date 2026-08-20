@@ -967,9 +967,12 @@ function computeBands(){
     for (var j = a; j < b; j++) s += freqData[j];
     var v = (s/(b-a))/255;
     v *= 0.55 + 1.15*(i/BANDS);          /* 高频能量补偿 */
-    v = Math.pow(Math.min(1, v*1.15), 1.25); /* gamma 压噪 */
-    bandsArr[i] = v * sens;              /* 乘以灵敏度，幅值不设上限 */
-    sum += v;
+    /* gamma 压噪：对钳制后的中间量做幂曲线（压噪声底），
+       但 clamp 只作用于中间量--最终值 = gamma曲线值 × 灵敏度，不设上限，
+       灵敏度调高时强低频可以撑满并超出画面（用户明确要求无高度上限） */
+    var g = Math.pow(Math.min(1, v*1.15), 1.25);
+    bandsArr[i] = g * sens;
+    sum += g;
   }
   return sum/BANDS;
 }
@@ -1541,7 +1544,8 @@ function drawParticlesPro(now){
     ctx.lineWidth = 1.5 + bv*2.5;
     ctx.stroke();
   }
-  /* 2. 轨道粒子：每个粒子在其频段环上运行，深度决定大小/亮度 */
+  /* 2. 轨道粒子：每个粒子在其频段环上运行，深度决定大小/亮度
+     粒子本体强化：更大更亮、能量响应夸张（高能量粒子明显膨胀发光） */
   for (var i = 0; i < proOrb.length; i++){
     var p = proOrb[i];
     var v = bandsArr[p.band];
@@ -1551,25 +1555,36 @@ function drawParticlesPro(now){
     var bandR = R*0.22 + (p.band/BANDS)*R*0.62;
     var rad = bandR + v*R*0.05 + Math.sin(now*0.001+p.tw)*3;
     var x = cx+Math.cos(p.a)*rad, y = cy+Math.sin(p.a)*rad;
-    /* 深度层次：depth 大 = 近 = 大而亮 */
-    var s = p.size*(0.5 + p.depth*0.9)*(0.7+v*1.3);
-    var al = Math.min(1, (0.2+p.depth*0.6)*(0.3+v*0.7));
-    /* 彗尾（能量越足尾越长） */
-    if (!p.fresh && v > 0.05){
-      var tailA = p.a - p.av*0.5*(1+v*3); /* 反向的尾巴 */
+    /* 深度层次 + 能量膨胀：depth 大 = 近 = 大而亮；能量高 = 瞬间膨胀 */
+    var s = p.size*(0.6 + p.depth*1.2)*(0.8 + v*2.2);
+    var al = Math.min(1, (0.3+p.depth*0.7)*(0.35+v*0.65));
+    /* 彗尾（能量越足尾越长越亮） */
+    if (!p.fresh && v > 0.03){
+      var tailA = p.a - p.av*0.6*(1+v*3.5); /* 反向的尾巴 */
       var tx = cx+Math.cos(tailA)*rad, ty = cy+Math.sin(tailA)*rad;
       ctx.strokeStyle = colorAt(p.band/BANDS);
-      ctx.globalAlpha = al*v*0.55;
-      ctx.lineWidth = s*1.1;
+      ctx.globalAlpha = Math.min(1, al*(0.15+v*0.6));
+      ctx.lineWidth = s*1.3;
       ctx.beginPath(); ctx.moveTo(tx, ty); ctx.lineTo(x, y); ctx.stroke();
     }
     p.fresh = false; p.lx = x; p.ly = y;
-    /* 光晕 + 核心 */
-    ctx.fillStyle = colorAt(p.band/BANDS);
-    ctx.globalAlpha = al*0.16;
-    ctx.beginPath(); ctx.arc(x, y, s*3, 0, Math.PI*2); ctx.fill();
+    /* 三层光晕 + 亮核：能量高时光晕显著扩大（发光感） */
+    var col = colorAt(p.band/BANDS);
+    ctx.fillStyle = col;
+    /* 外层大光晕（低透明度大圆） */
+    ctx.globalAlpha = al*0.10*(0.5+v);
+    ctx.beginPath(); ctx.arc(x, y, s*4.2, 0, Math.PI*2); ctx.fill();
+    /* 中层光晕 */
+    ctx.globalAlpha = al*0.22*(0.6+v*0.6);
+    ctx.beginPath(); ctx.arc(x, y, s*2.4, 0, Math.PI*2); ctx.fill();
+    /* 亮核（能量高时用白色提亮，模拟过曝） */
     ctx.globalAlpha = al;
     ctx.beginPath(); ctx.arc(x, y, s, 0, Math.PI*2); ctx.fill();
+    if (v > 0.35){
+      ctx.globalAlpha = al*(v-0.35)*1.2;
+      ctx.fillStyle = '#fff';
+      ctx.beginPath(); ctx.arc(x, y, s*0.55, 0, Math.PI*2); ctx.fill();
+    }
   }
   /* 3. 节拍流星环：节拍时从中心射出一圈流星（旋转散射） */
   if (newBeat){
