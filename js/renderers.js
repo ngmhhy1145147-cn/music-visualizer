@@ -556,14 +556,21 @@ function drawParticlesPro(now){
     /* 强化版尺寸：能量膨胀系数 0.8+v×2.2，depth 微调层次 */
     var s = p.size*(0.6 + p.depth*0.5)*(0.8 + v*2.2);
     var al = Math.min(1, (0.25+p.depth*0.6)*(0.35+v*0.65));
-    /* 彗尾（强化版：阈值 0.03、随能量增亮、尾宽加大） */
+    /* 彗尾（强化版：阈值 0.03、随能量增亮、尾宽加大）
+       方向必须沿「上一帧真实位置 → 当前位置」反向延长（经典同款做法），
+       不能按轨道角度推算尾起点 —— Pro 粒子半径随能量外推（v*R*0.12），
+       能量起伏时半径逐帧跳动，角度推算的起点会脱离真实轨迹，尾方向乱偏 */
     if (!p.fresh && v > 0.03){
-      var tailA = p.a - p.av*0.6*(1+v*3.5);
-      var tx = cx+Math.cos(tailA)*rad, ty = cy+Math.sin(tailA)*rad;
-      ctx.strokeStyle = colorAt(p.band/BANDS);
-      ctx.globalAlpha = Math.min(1, al*(0.15+v*0.6));
-      ctx.lineWidth = s*1.3;
-      ctx.beginPath(); ctx.moveTo(tx, ty); ctx.lineTo(x, y); ctx.stroke();
+      var mdx = x - p.lx, mdy = y - p.ly;
+      var md = Math.sqrt(mdx*mdx + mdy*mdy);
+      if (md > 0.3){ /* 几乎静止时不画尾，避免原地长尾 */
+        var tl = md*(1.6 + v*4);
+        var tx = x - mdx/md*tl, ty = y - mdy/md*tl;
+        ctx.strokeStyle = colorAt(p.band/BANDS);
+        ctx.globalAlpha = Math.min(1, al*(0.15+v*0.6));
+        ctx.lineWidth = s*1.3;
+        ctx.beginPath(); ctx.moveTo(tx, ty); ctx.lineTo(x, y); ctx.stroke();
+      }
     }
     p.fresh = false; p.lx = x; p.ly = y;
     /* 三层光晕 + 亮核（强化版） */
