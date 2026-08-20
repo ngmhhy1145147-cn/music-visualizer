@@ -1514,7 +1514,7 @@ function spawnProOrb(){
     size: 1+Math.random()*2.4, tw: Math.random()*Math.PI*2,
     phase: Math.random()*Math.PI*2, // 脉动相位
     depth: 0.4+Math.random()*0.6,   // 深度层次（0远1近）
-    drift: (Math.random()-0.5)*0.18, // 轨道随机漂移偏移（自由感）
+    drift: (Math.random()-0.5)*0.04, // 轨道微漂移（极小，只打破完全对齐的机械感）
     fresh: true, lx: 0, ly: 0
   });
 }
@@ -1544,40 +1544,46 @@ function drawParticlesPro(now){
     ctx.lineWidth = 1 + bv*1.8;
     ctx.stroke();
   }
-  /* 2. 轨道粒子：频段环给出层次，drift/能量外推给出自由感
-     尺寸对齐经典（0.6 基础系数），光晕/白核保留但收敛 */
+  /* 2. 轨道粒子：频段环给出层次，微漂移打破机械感
+     粒子本体 = 强化版（用户确认的参数）：能量膨胀 + 三层光晕 + 白色过曝核 */
   for (var i = 0; i < proOrb.length; i++){
     var p = proOrb[i];
     var v = bandsArr[p.band];
     p.a += p.av*orbSpd*(0.6+v*2);
-    /* 轨道半径 = 频段环 ×（1+随机漂移）+ 强能量外推（与经典同力度） */
+    /* 轨道半径 = 频段环 ×（1+微漂移）+ 能量外推 + 呼吸微动 */
     var bandR = R*0.22 + (p.band/BANDS)*R*0.62;
-    var rad = bandR*(1+p.drift) + v*R*0.20 + Math.sin(now*0.001+p.tw)*5;
+    var rad = bandR*(1+p.drift) + v*R*0.12 + Math.sin(now*0.001+p.tw)*4;
     var x = cx+Math.cos(p.a)*rad, y = cy+Math.sin(p.a)*rad*0.94;
-    /* 尺寸：经典级基础（0.6 起），深度只微调 ±20% */
-    var s = p.size*(0.55 + p.depth*0.25)*(0.6 + v*1.8);
-    var al = Math.min(1, (0.25+p.depth*0.5)*(0.35+v*0.65));
-    /* 彗尾（能量越足尾越长越亮） */
+    /* 强化版尺寸：能量膨胀系数 0.8+v×2.2，depth 微调层次 */
+    var s = p.size*(0.6 + p.depth*0.5)*(0.8 + v*2.2);
+    var al = Math.min(1, (0.25+p.depth*0.6)*(0.35+v*0.65));
+    /* 彗尾（强化版：阈值 0.03、随能量增亮、尾宽加大） */
     if (!p.fresh && v > 0.03){
       var tailA = p.a - p.av*0.6*(1+v*3.5);
       var tx = cx+Math.cos(tailA)*rad, ty = cy+Math.sin(tailA)*rad;
       ctx.strokeStyle = colorAt(p.band/BANDS);
-      ctx.globalAlpha = Math.min(1, al*(0.15+v*0.55));
-      ctx.lineWidth = s*1.2;
+      ctx.globalAlpha = Math.min(1, al*(0.15+v*0.6));
+      ctx.lineWidth = s*1.3;
       ctx.beginPath(); ctx.moveTo(tx, ty); ctx.lineTo(x, y); ctx.stroke();
     }
     p.fresh = false; p.lx = x; p.ly = y;
-    /* 双层光晕 + 亮核（收敛版：光晕不过分大，白核只在强能量时出现） */
+    /* 三层光晕 + 亮核（强化版） */
     var col = colorAt(p.band/BANDS);
     ctx.fillStyle = col;
-    ctx.globalAlpha = al*0.12*(0.5+v);
-    ctx.beginPath(); ctx.arc(x, y, s*3.2, 0, Math.PI*2); ctx.fill();
+    /* 外层大光晕（4.2 倍半径，能量越足越大越亮） */
+    ctx.globalAlpha = al*0.10*(0.5+v);
+    ctx.beginPath(); ctx.arc(x, y, s*4.2, 0, Math.PI*2); ctx.fill();
+    /* 中层光晕 */
+    ctx.globalAlpha = al*0.22*(0.6+v*0.6);
+    ctx.beginPath(); ctx.arc(x, y, s*2.4, 0, Math.PI*2); ctx.fill();
+    /* 亮核 */
     ctx.globalAlpha = al;
     ctx.beginPath(); ctx.arc(x, y, s, 0, Math.PI*2); ctx.fill();
-    if (v > 0.45){
-      ctx.globalAlpha = al*(v-0.45)*1.3;
+    /* 白色过曝核：能量 >35% 时中心叠白，发光感的关键 */
+    if (v > 0.35){
+      ctx.globalAlpha = al*(v-0.35)*1.2;
       ctx.fillStyle = '#fff';
-      ctx.beginPath(); ctx.arc(x, y, s*0.5, 0, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(x, y, s*0.55, 0, Math.PI*2); ctx.fill();
     }
   }
   /* 3. 节拍流星环：节拍时从中心射出一圈流星（旋转散射） */
