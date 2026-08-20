@@ -248,6 +248,16 @@ body:not(.playing) .pl-eq i{animation-play-state:paused;}
 #st-content::-webkit-scrollbar-thumb{background:rgba(255,255,255,.12);border-radius:3px;}
 .st-pane{display:none;}
 .st-pane.active{display:block;}
+/* 可视化栏的二级模式导航 */
+.viz-tabs{display:flex;gap:4px;flex-wrap:wrap;margin:12px 0 6px;}
+.viz-tab{
+  padding:5px 11px;border-radius:999px;font-size:12px;color:#a8a3c4;
+  background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);transition:all .15s;
+}
+.viz-tab:hover{color:#fff;background:rgba(255,255,255,.1);}
+.viz-tab.active{color:#fff;background:linear-gradient(135deg,var(--accent),var(--accent2));border-color:transparent;}
+.viz-sub{display:none;}
+.viz-sub.active{display:block;}
 .st-pane-title{font-size:12px;letter-spacing:2px;color:var(--accent2);margin:14px 0 4px;}
 .st-row{
   display:flex;justify-content:space-between;align-items:center;gap:14px;
@@ -596,18 +606,12 @@ body.blogger #topbar,body.blogger #controls,body.blogger #playlist,body.blogger 
             <option value="classic">经典</option>
             <option value="pro">Pro（高级）</option>
           </select>
-        </div>        <div class="st-row">
-          <div class="st-label">拖尾残影强度<span class="st-sub">画面运动的拖影长度（0 = 无残影）</span></div>
+        </div>
+        <div class="st-row">
+          <div class="st-label">拖尾残影强度<span class="st-sub">画面运动的拖影长度（0 = 无残影；频谱模式的条内尾迹同样受控）</span></div>
           <div style="display:flex;align-items:center;gap:8px;">
             <input id="st-trail" class="st-range" type="range" min="0" max="0.6" step="0.02" value="0.45">
             <span id="st-trail-val" class="st-range-val">45%</span>
-          </div>
-        </div>
-        <div class="st-row">
-          <div class="st-label">峰值帽下落速度<span class="st-sub">频谱柱顶端的悬浮小帽</span></div>
-          <div style="display:flex;align-items:center;gap:8px;">
-            <input id="st-peak" class="st-range" type="range" min="0" max="0.02" step="0.002" value="0.005">
-            <span id="st-peak-val" class="st-range-val">0.005</span>
           </div>
         </div>
         <div class="st-row">
@@ -618,20 +622,6 @@ body.blogger #topbar,body.blogger #controls,body.blogger #playlist,body.blogger 
           </div>
         </div>
         <div class="st-row">
-          <div class="st-label">环形旋转速度<span class="st-sub">环形频谱的自转速度</span></div>
-          <div style="display:flex;align-items:center;gap:8px;">
-            <input id="st-rot" class="st-range" type="range" min="0" max="4" step="0.1" value="1">
-            <span id="st-rot-val" class="st-range-val">100%</span>
-          </div>
-        </div>
-        <div class="st-row">
-          <div class="st-label">粒子数量<span class="st-sub">星云模式的环绕粒子密度</span></div>
-          <div style="display:flex;align-items:center;gap:8px;">
-            <input id="st-orb" class="st-range" type="range" min="60" max="600" step="20" value="240">
-            <span id="st-orb-val" class="st-range-val">240</span>
-          </div>
-        </div>
-        <div class="st-row">
           <div class="st-label">频谱平滑度<span class="st-sub">频谱随时间的平滑程度（越高越顺滑越迟钝）</span></div>
           <div style="display:flex;align-items:center;gap:8px;">
             <input id="st-smooth" class="st-range" type="range" min="0.5" max="0.95" step="0.05" value="0.8">
@@ -639,12 +629,148 @@ body.blogger #topbar,body.blogger #controls,body.blogger #playlist,body.blogger 
           </div>
         </div>
         <div class="st-row">
-          <div class="st-label">地面反射（频谱模式）<span class="st-sub">柱子下方的倒影</span></div>
-          <label class="switch"><input type="checkbox" id="st-reflect"><span class="sl"></span></label>
-        </div>
-        <div class="st-row">
           <div class="st-label">标题栏歌名跑马灯<span class="st-sub">超长歌名在浏览器标签标题滚动</span></div>
           <label class="switch"><input type="checkbox" id="st-marquee"><span class="sl"></span></label>
+        </div>
+
+        <div class="viz-tabs">
+          <button class="viz-tab active" data-viz="v-bars">频谱</button>
+          <button class="viz-tab" data-viz="v-radial">环形</button>
+          <button class="viz-tab" data-viz="v-wave">波形</button>
+          <button class="viz-tab" data-viz="v-orb">星云</button>
+          <button class="viz-tab" data-viz="v-fall">瀑布</button>
+        </div>
+
+        <div class="viz-sub active" id="v-bars">
+          <div class="st-row">
+            <div class="st-label">柱宽<span class="st-sub">频谱柱的粗细占比</span></div>
+            <div style="display:flex;align-items:center;gap:8px;">
+              <input id="st-barw" class="st-range" type="range" min="0.25" max="0.95" step="0.05" value="0.62">
+              <span id="st-barw-val" class="st-range-val">62%</span>
+            </div>
+          </div>
+          <div class="st-row">
+            <div class="st-label">峰值帽下落速度<span class="st-sub">频谱柱顶端的悬浮小帽</span></div>
+            <div style="display:flex;align-items:center;gap:8px;">
+              <input id="st-peak" class="st-range" type="range" min="0" max="0.02" step="0.002" value="0.005">
+              <span id="st-peak-val" class="st-range-val">0.005</span>
+            </div>
+          </div>
+          <div class="st-row">
+            <div class="st-label">地面反射<span class="st-sub">柱子下方的倒影</span></div>
+            <label class="switch"><input type="checkbox" id="st-reflect"><span class="sl"></span></label>
+          </div>
+          <div class="st-row">
+            <div class="st-label">反射高度<span class="st-sub">倒影占柱高的比例</span></div>
+            <div style="display:flex;align-items:center;gap:8px;">
+              <input id="st-rh" class="st-range" type="range" min="0.1" max="0.8" step="0.05" value="0.4">
+              <span id="st-rh-val" class="st-range-val">40%</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="viz-sub" id="v-radial">
+          <div class="st-row">
+            <div class="st-label">旋转速度<span class="st-sub">环形频谱的自转速度</span></div>
+            <div style="display:flex;align-items:center;gap:8px;">
+              <input id="st-rot" class="st-range" type="range" min="0" max="4" step="0.1" value="1">
+              <span id="st-rot-val" class="st-range-val">100%</span>
+            </div>
+          </div>
+          <div class="st-row">
+            <div class="st-label">旋转方向<span class="st-sub">顺时针 / 逆时针</span></div>
+            <select id="st-rotdir" class="st-select">
+              <option value="1">顺时针</option>
+              <option value="-1">逆时针</option>
+            </select>
+          </div>
+          <div class="st-row">
+            <div class="st-label">中心圆大小<span class="st-sub">环形内圈半径占画面比例</span></div>
+            <div style="display:flex;align-items:center;gap:8px;">
+              <input id="st-r0" class="st-range" type="range" min="0.08" max="0.26" step="0.01" value="0.16">
+              <span id="st-r0-val" class="st-range-val">16%</span>
+            </div>
+          </div>
+          <div class="st-row">
+            <div class="st-label">放射长度<span class="st-sub">频谱条的最大伸展范围</span></div>
+            <div style="display:flex;align-items:center;gap:8px;">
+              <input id="st-rlen" class="st-range" type="range" min="0.15" max="0.45" step="0.01" value="0.30">
+              <span id="st-rlen-val" class="st-range-val">30%</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="viz-sub" id="v-wave">
+          <div class="st-row">
+            <div class="st-label">振幅<span class="st-sub">波形高度占画面比例</span></div>
+            <div style="display:flex;align-items:center;gap:8px;">
+              <input id="st-wamp" class="st-range" type="range" min="0.1" max="0.45" step="0.01" value="0.28">
+              <span id="st-wamp-val" class="st-range-val">28%</span>
+            </div>
+          </div>
+          <div class="st-row">
+            <div class="st-label">残影层数<span class="st-sub">历史波形的叠加层数</span></div>
+            <div style="display:flex;align-items:center;gap:8px;">
+              <input id="st-whist" class="st-range" type="range" min="1" max="12" step="1" value="7">
+              <span id="st-whist-val" class="st-range-val">7 层</span>
+            </div>
+          </div>
+          <div class="st-row">
+            <div class="st-label">对称比<span class="st-sub">下半波相对上半波的压缩比例</span></div>
+            <div style="display:flex;align-items:center;gap:8px;">
+              <input id="st-wsym" class="st-range" type="range" min="0.4" max="1" step="0.05" value="0.8">
+              <span id="st-wsym-val" class="st-range-val">80%</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="viz-sub" id="v-orb">
+          <div class="st-row">
+            <div class="st-label">粒子数量<span class="st-sub">环绕粒子密度</span></div>
+            <div style="display:flex;align-items:center;gap:8px;">
+              <input id="st-orb" class="st-range" type="range" min="60" max="600" step="20" value="240">
+              <span id="st-orb-val" class="st-range-val">240</span>
+            </div>
+          </div>
+          <div class="st-row">
+            <div class="st-label">节拍流星数量<span class="st-sub">每次节拍迸发的流星数</span></div>
+            <div style="display:flex;align-items:center;gap:8px;">
+              <input id="st-burst" class="st-range" type="range" min="0" max="60" step="2" value="26">
+              <span id="st-burst-val" class="st-range-val">26</span>
+            </div>
+          </div>
+          <div class="st-row">
+            <div class="st-label">中心辉光<span class="st-sub">星云中心的呼吸光晕</span></div>
+            <label class="switch"><input type="checkbox" id="st-cglow"><span class="sl"></span></label>
+          </div>
+          <div class="st-row">
+            <div class="st-label">频段轨道环（Pro）<span class="st-sub">Pro 预设的背景发光弧层</span></div>
+            <label class="switch"><input type="checkbox" id="st-rings"><span class="sl"></span></label>
+          </div>
+        </div>
+
+        <div class="viz-sub" id="v-fall">
+          <div class="st-row">
+            <div class="st-label">下落速度<span class="st-sub">声谱历史的滚动速度</span></div>
+            <div style="display:flex;align-items:center;gap:8px;">
+              <input id="st-fspd" class="st-range" type="range" min="1" max="6" step="0.5" value="1.5">
+              <span id="st-fspd-val" class="st-range-val">×1.5</span>
+            </div>
+          </div>
+          <div class="st-row">
+            <div class="st-label">色彩模式<span class="st-sub">瀑布的色彩映射</span></div>
+            <select id="st-fcolor" class="st-select">
+              <option value="theme">主题色渐变</option>
+              <option value="temp">色温映射（Pro）</option>
+            </select>
+          </div>
+          <div class="st-row">
+            <div class="st-label">底部雾化高度<span class="st-sub">Pro 预设的底部渐隐区域（0 = 关闭）</span></div>
+            <div style="display:flex;align-items:center;gap:8px;">
+              <input id="st-ffade" class="st-range" type="range" min="0" max="0.4" step="0.02" value="0.22">
+              <span id="st-ffade-val" class="st-range-val">22%</span>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -821,6 +947,18 @@ var stRot = $('st-rot'), stRotVal = $('st-rot-val');
 var stOrb = $('st-orb'), stOrbVal = $('st-orb-val');
 var stSmooth = $('st-smooth'), stSmoothVal = $('st-smooth-val');
 var stReflect = $('st-reflect'), stDot = $('st-dot'), stMarquee = $('st-marquee');
+/* 模式专属设置元素 */
+var stBarW = $('st-barw'), stBarWVal = $('st-barw-val');
+var stRh = $('st-rh'), stRhVal = $('st-rh-val');
+var stRotDir = $('st-rotdir'), stR0 = $('st-r0'), stR0Val = $('st-r0-val');
+var stRLen = $('st-rlen'), stRLenVal = $('st-rlen-val');
+var stWAmp = $('st-wamp'), stWAmpVal = $('st-wamp-val');
+var stWHist = $('st-whist'), stWHistVal = $('st-whist-val');
+var stWSym = $('st-wsym'), stWSymVal = $('st-wsym-val');
+var stBurst = $('st-burst'), stBurstVal = $('st-burst-val');
+var stCGlow = $('st-cglow'), stRings = $('st-rings');
+var stFSpd = $('st-fspd'), stFSpdVal = $('st-fspd-val');
+var stFColor = $('st-fcolor'), stFFade = $('st-ffade'), stFFadeVal = $('st-ffade-val');
 var stIdle = $('st-idle'), stIdleVal = $('st-idle-val');
 var stAutoNext = $('st-autonext'), stBeatReset = $('st-beatreset');
 var stBarStyle = $('st-barstyle'), stAutoOpen = $('st-autoopen');
@@ -1049,7 +1187,7 @@ function drawBars(){
      拖尾效果由每根条上方独立的渐隐尾迹表现 */
   beginFrame(0);
   var baseline = H*0.88, usable = H*0.72;
-  var bw = W/BANDS, barW = Math.max(2, bw*0.62);
+  var bw = W/BANDS, barW = Math.max(2, bw*barWidthPct);
   var capH = Math.max(3, Math.round(barW*0.22)); /* 峰值帽厚度随条宽缩放（4K 下可见） */
   var trailFall = 0.06 - trailAmt*0.09;          /* 尾迹回落速度：拖尾越强回落越慢 */
   ctx.globalCompositeOperation = 'lighter';
@@ -1072,7 +1210,7 @@ function drawBars(){
     ctx.fillRect(x-barW/2, baseline-h, barW, h);
     /* 地面反射 */
     ctx.globalAlpha = 0.13;
-    var rh = reflectOn ? Math.min(h*0.4, H-baseline-2) : 0;
+    var rh = reflectOn ? Math.min(h*reflectH, H-baseline-2) : 0;
     if (rh > 0) ctx.fillRect(x-barW/2, baseline+2, barW, rh);
     /* 峰值帽：底边精确锚定在峰值位置 */
     if (peaks[i] < v) peaks[i] = v;
@@ -1094,10 +1232,10 @@ function radialLine(cx, cy, a, r1, r2){
 function drawRadial(now){
   beginFrame(trailAmt);
   var cx = W/2, cy = H/2, R = Math.min(W, H);
-  var r0 = R*0.16*(1 + 0.14*beatPulse*beatAmt);
-  var maxLen = R*0.30;
+  var r0 = R*radialR0*(1 + 0.14*beatPulse*beatAmt);
+  var maxLen = R*radialLen;
   var half = BANDS >> 1;
-  rot += (0.0016 + energy*0.004) * rotAmt;
+  rot += (0.0016 + energy*0.004) * rotAmt * rotDir;
   ctx.globalCompositeOperation = 'lighter';
   ctx.lineCap = 'round';
   var lw = Math.max(1.5, (Math.PI*r0/half)*0.42);
@@ -1144,11 +1282,11 @@ function drawWave(){
   var td = timeData || fakeTime;
   if (frameCount % 2 === 0){
     waveHist.unshift(Float32Array.from(td));
-    if (waveHist.length > 7) waveHist.pop();
+    if (waveHist.length > waveHistN) waveHist.pop();
   }
   if (!waveHist.length) return;
   var cy = H/2;
-  var amp = H*0.30*(0.55 + 0.45*level + 0.22*beatPulse);
+  var amp = H*waveAmp*1.07*(0.55 + 0.45*level + 0.22*beatPulse);
   var N = 240;
   for (var li = waveHist.length-1; li >= 0; li--){
     var snap = waveHist[li];
@@ -1164,7 +1302,7 @@ function drawWave(){
     for (i = N; i >= 0; i--){
       idx = Math.floor(i/N*(snap.length-1));
       v = (snap[idx]-128)/128;
-      ctx.lineTo(i/N*W, cy + v*amp*k*0.8);
+      ctx.lineTo(i/N*W, cy + v*amp*k*waveSym);
     }
     ctx.closePath();
     if (isTop){
@@ -1228,7 +1366,7 @@ function drawParticles(now){
     ctx.beginPath(); ctx.arc(x, y, s, 0, Math.PI*2); ctx.fill();
   }
   if (newBeat){ /* 节拍迸发 */
-    for (var k = 0; k < 26; k++){
+    for (var k = 0; k < burstN; k++){
       var ba = Math.random()*Math.PI*2;
       var bsp = (2 + Math.random()*6)*(R/400);
       bursts.push({ x:cx, y:cy, vx:Math.cos(ba)*bsp, vy:Math.sin(ba)*bsp, life:1, size:1 + Math.random()*2.5, c:Math.random(), fresh:true, lx:cx, ly:cy });
@@ -1253,11 +1391,13 @@ function drawParticles(now){
   }
   ctx.globalAlpha = 1;
   ctx.globalCompositeOperation = 'source-over';
-  var g = ctx.createRadialGradient(cx, cy, 0, cx, cy, R*0.25);
-  g.addColorStop(0, colorAt(0.5, 0.10 + 0.12*beatPulse*beatAmt));
-  g.addColorStop(1, 'rgba(0,0,0,0)');
-  ctx.fillStyle = g;
-  ctx.fillRect(cx - R*0.25, cy - R*0.25, R*0.5, R*0.5);
+  if (cGlowOn){ /* 中心辉光（可设置关闭） */
+    var g = ctx.createRadialGradient(cx, cy, 0, cx, cy, R*0.25);
+    g.addColorStop(0, colorAt(0.5, 0.10 + 0.12*beatPulse*beatAmt));
+    g.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(cx - R*0.25, cy - R*0.25, R*0.5, R*0.5);
+  }
 }
 
 /* ---------- 模式 5：瀑布热图 ---------- */
@@ -1277,7 +1417,10 @@ function ensureOff(){
 function drawWaterfall(){
   ensureOff();
   var pw = off.width;
-  octx.drawImage(off, 0, rowH); /* 历史下移一行 */
+  var rows = Math.max(1, Math.round(fallSpd)); /* 下落速度：每帧移 N 行 */
+  octx.drawImage(off, 0, rows*rowH); /* 历史下移 rows 行 */
+  /* 移出的区域立即重绘本帧行（避免速度>1 时出现空白带） */
+  for (var r2 = rows-1; r2 >= 1; r2--) octx.drawImage(off, 0, (r2-1)*rowH, pw, rowH, 0, r2*rowH, pw, rowH);
   var bandW = pw/BANDS;
   for (var i = 0; i < BANDS; i++){
     var v = bandsArr[i];
@@ -1286,7 +1429,13 @@ function drawWaterfall(){
       if (bgUrl) octx.clearRect(x, 0, w, rowH);
       else { octx.fillStyle = rgbStr(getBg(), 1); octx.fillRect(x, 0, w, rowH); }
     } else {
-      octx.fillStyle = colorAt(Math.pow(v, 0.8));
+      /* 色彩模式：主题色渐变（经典）或色温映射（与 Pro 共享设置） */
+      if (fallColor === 'temp'){
+        var hue = (1-v)*25 + v*210;
+        octx.fillStyle = 'hsl('+hue+','+(50+v*35)+'%,'+(40+v*30)+'%)';
+      } else {
+        octx.fillStyle = colorAt(Math.pow(v, 0.8));
+      }
       octx.fillRect(x, 0, w, rowH);
     }
   }
@@ -1323,7 +1472,7 @@ var proTrail = new Float32Array(BANDS);
 function drawBarsPro(){
   beginFrame(0); /* 全清（无全局反馈，条形亮度恒定） */
   var baseline = H*0.88, usable = H*0.72;
-  var bw = W/BANDS, barW = Math.max(2, bw*0.58);
+  var bw = W/BANDS, barW = Math.max(2, bw*barWidthPct);
   var capH = Math.max(4, Math.round(barW*0.24));
   var trailFall = 0.06 - trailAmt*0.09;
   /* 每帧构建一次多色渐变缓存（按频率分布），避免逐条重复构建 */
@@ -1370,11 +1519,11 @@ function drawBarsPro(){
 function drawRadialPro(now){
   beginFrame(0.35); /* 残影拖尾，转动的条会留下弧形光痕 */
   var cx = W/2, cy = H/2, R = Math.min(W, H);
-  var r0 = R*0.16*(1 + 0.14*beatPulse*beatAmt);
-  var maxLen = R*0.30;
+  var r0 = R*radialR0*(1 + 0.14*beatPulse*beatAmt);
+  var maxLen = R*radialLen;
   var half = BANDS >> 1;
   /* 双层反向旋转：外层频谱正转，整体产生齿轮咬合般的动态张力 */
-  rot += (0.0016 + energy*0.004) * rotAmt;
+  rot += (0.0016 + energy*0.004) * rotAmt * rotDir;
   var innerRot = -rot*1.6;
   ctx.globalCompositeOperation = 'lighter';
   ctx.lineCap = 'round';
@@ -1463,11 +1612,11 @@ function drawRadialPro(now){
 function drawWavePro(){
   beginFrame(0.3);
   var td = timeData || fakeTime;
-  if (frameCount % 2 === 0){ waveHist.unshift(Float32Array.from(td)); if (waveHist.length > 9) waveHist.pop(); }
+  if (frameCount % 2 === 0){ waveHist.unshift(Float32Array.from(td)); if (waveHist.length > waveHistN+2) waveHist.pop(); }
   if (!waveHist.length) return;
   var cy = H/2;
   var breathe = 1 + level*0.08 + beatPulse*beatAmt*0.05;
-  var baseAmp = H*0.28;
+  var baseAmp = H*waveAmp;
   /* 交替绘色（奇偶历史层用不同渐变，形成交织） */
   for (var li = waveHist.length-1; li >= 0; li--){
     var snap = waveHist[li];
@@ -1482,7 +1631,7 @@ function drawWavePro(){
     }
     for (i = N; i >= 0; i--){
       var v2 = (snap[Math.floor(i/N*(snap.length-1))]-128)/128;
-      ctx.lineTo(i/N*W, cy + v2*amp*0.85);
+      ctx.lineTo(i/N*W, cy + v2*amp*waveSym);
     }
     ctx.closePath();
     if (isTop){
@@ -1528,10 +1677,10 @@ function drawParticlesPro(now){
   ctx.globalCompositeOperation = 'lighter';
   ctx.lineCap = 'round';
   /* 1. 频段轨道弧：按频段能量画出发光的弧段（唱片层次环）
-     只画有能量的频段，弧的位置随时间缓慢流转 */
+     只画有能量的频段，弧的位置随时间缓慢流转（可在设置中关闭） */
   var ringGap = R*0.062;
   var orbSpd = 0.4 + energy*1.8 + beatPulse*beatAmt*1.5;
-  for (var b2 = 0; b2 < BANDS; b2 += 4){ /* 每 4 个频段一道环 */
+  if (ringsOn) for (var b2 = 0; b2 < BANDS; b2 += 4){ /* 每 4 个频段一道环 */
     var bv = bandsArr[b2];
     if (bv < 0.03) continue;
     var ringR = R*0.22 + (b2/BANDS)*R*0.62;
@@ -1587,10 +1736,11 @@ function drawParticlesPro(now){
     }
   }
   /* 3. 节拍流星环：节拍时从中心射出一圈流星（旋转散射） */
-  if (newBeat){
+  if (newBeat && burstN > 0){
     var meteorBase = Math.random()*Math.PI*2;
-    for (var k = 0; k < 22; k++){
-      var mAng = meteorBase + (k/22)*Math.PI*2;
+    var meteorN = Math.max(8, Math.round(burstN*0.85));
+    for (var k = 0; k < meteorN; k++){
+      var mAng = meteorBase + (k/meteorN)*Math.PI*2;
       proBurst.push({
         x: cx, y: cy,
         vx: Math.cos(mAng)*(1.5+Math.random()*4)*(R/400),
@@ -1618,14 +1768,14 @@ function drawParticlesPro(now){
   }
   ctx.globalAlpha = 1;
   ctx.globalCompositeOperation = 'source-over';
-  /* 4. 中心辉光（节拍呼吸） */
-  var g = ctx.createRadialGradient(cx,cy,0,cx,cy,R*0.20);
-  g.addColorStop(0, colorAt(0.5, 0.12 + beatPulse*beatAmt*0.18));
-  g.addColorStop(1, 'rgba(0,0,0,0)');
-  ctx.fillStyle = g;
-  ctx.fillRect(cx-R*0.20, cy-R*0.20, R*0.4, R*0.4);
-  g.addColorStop(1, 'rgba(0,0,0,0)');
-  ctx.fillStyle = g; ctx.fillRect(cx-R*0.22,cy-R*0.22,R*0.44,R*0.44);
+  /* 4. 中心辉光（节拍呼吸，可设置关闭） */
+  if (cGlowOn){
+    var g = ctx.createRadialGradient(cx,cy,0,cx,cy,R*0.20);
+    g.addColorStop(0, colorAt(0.5, 0.12 + beatPulse*beatAmt*0.18));
+    g.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(cx-R*0.20, cy-R*0.20, R*0.4, R*0.4);
+  }
 }
 /* ---- Pro 瀑布：暖色温渐变 + 底部渐隐 ---- */
 var proOff = null, proOctx = null, proRowH = 2;
@@ -1641,7 +1791,9 @@ function ensureProOff(){
 function drawWaterfallPro(){
   ensureProOff();
   var pw = proOff.width;
-  proOctx.drawImage(proOff, 0, proRowH);
+  var rows = Math.max(1, Math.round(fallSpd)); /* 下落速度（设置） */
+  proOctx.drawImage(proOff, 0, rows*proRowH);
+  for (var r2 = rows-1; r2 >= 1; r2--) proOctx.drawImage(proOff, 0, (r2-1)*proRowH, pw, proRowH, 0, r2*proRowH, pw, proRowH);
   var bandW = pw/BANDS;
   for (var i = 0; i < BANDS; i++){
     var v = bandsArr[i];
@@ -1649,23 +1801,29 @@ function drawWaterfallPro(){
     if (v < 0.02){
       if (bgUrl) proOctx.clearRect(x,0,w,proRowH);
       else { proOctx.fillStyle = rgbStr(getBg(),1); proOctx.fillRect(x,0,w,proRowH); }
-    } else {
+    } else if (fallColor === 'temp'){
       /* 暖色温映射：高频用浅蓝，低频用暖橙，饱和度随能量增强 */
       var hue = (1-v)*25 + v*210;  /* 25°(橙)~210°(蓝) */
       var sat = 50 + v*35;
       var lit = 40 + v*30;
       proOctx.fillStyle = 'hsl('+hue+','+sat+'%,'+lit+'%)';
       proOctx.fillRect(x, 0, w, proRowH);
+    } else {
+      /* 主题色渐变（设置可选，与经典共享） */
+      proOctx.fillStyle = colorAt(Math.pow(v, 0.8));
+      proOctx.fillRect(x, 0, w, proRowH);
     }
   }
-  /* 底部渐隐遮罩：画布下方 20% 区域用逐渐透明的背景色覆盖 */
-  var fadeH = Math.round(proOff.height * 0.22);
-  var fg = proOctx.createLinearGradient(0, proOff.height-fadeH, 0, proOff.height);
-  var bgc = getBg();
-  fg.addColorStop(0, 'rgba('+bgc[0]+','+bgc[1]+','+bgc[2]+',0)');
-  fg.addColorStop(1, 'rgba('+bgc[0]+','+bgc[1]+','+bgc[2]+',1)');
-  proOctx.fillStyle = fg;
-  proOctx.fillRect(0, proOff.height-fadeH, proOff.width, fadeH);
+  /* 底部渐隐遮罩：高度可设置（0 = 关闭） */
+  if (fallFade > 0.01){
+    var fadeH = Math.round(proOff.height * fallFade);
+    var fg = proOctx.createLinearGradient(0, proOff.height-fadeH, 0, proOff.height);
+    var bgc = getBg();
+    fg.addColorStop(0, 'rgba('+bgc[0]+','+bgc[1]+','+bgc[2]+',0)');
+    fg.addColorStop(1, 'rgba('+bgc[0]+','+bgc[1]+','+bgc[2]+',1)');
+    proOctx.fillStyle = fg;
+    proOctx.fillRect(0, proOff.height-fadeH, proOff.width, fadeH);
+  }
   /* 中线高光 */
   var midY = Math.round(proOff.height*0.48);
   var mG = proOctx.createLinearGradient(0, midY-2, 0, midY+2);
@@ -2280,6 +2438,148 @@ function setReflect(on){
 }
 stReflect.addEventListener('change', function(){ setReflect(stReflect.checked); });
 
+/* ---------- 模式专属设置 ---------- */
+/* 频谱：柱宽 / 反射高度 */
+var barWidthPct = loadPref('mv.barw', 0.62);
+function setBarW(v){
+  barWidthPct = clampN(+v || 0.62, 0.25, 0.95);
+  savePref('mv.barw', barWidthPct);
+  stBarW.value = barWidthPct;
+  stBarWVal.textContent = Math.round(barWidthPct*100) + '%';
+}
+stBarW.addEventListener('input', function(){ setBarW(+stBarW.value); });
+
+var reflectH = loadPref('mv.rh', 0.4);
+function setRh(v){
+  reflectH = clampN(+v || 0.4, 0.1, 0.8);
+  savePref('mv.rh', reflectH);
+  stRh.value = reflectH;
+  stRhVal.textContent = Math.round(reflectH*100) + '%';
+}
+stRh.addEventListener('input', function(){ setRh(+stRh.value); });
+
+/* 环形：方向 / 中心圆 / 放射长度 */
+var rotDir = loadPref('mv.rotdir', 1) === -1 ? -1 : 1;
+function setRotDir(v){
+  rotDir = v === '-1' ? -1 : 1;
+  savePref('mv.rotdir', rotDir);
+  stRotDir.value = String(rotDir);
+  waveHist.length = 0;
+}
+stRotDir.addEventListener('change', function(){ setRotDir(stRotDir.value); });
+
+var radialR0 = loadPref('mv.r0', 0.16);
+function setR0(v){
+  radialR0 = clampN(+v || 0.16, 0.08, 0.26);
+  savePref('mv.r0', radialR0);
+  stR0.value = radialR0;
+  stR0Val.textContent = Math.round(radialR0*100) + '%';
+}
+stR0.addEventListener('input', function(){ setR0(+stR0.value); });
+
+var radialLen = loadPref('mv.rlen', 0.30);
+function setRLen(v){
+  radialLen = clampN(+v || 0.3, 0.15, 0.45);
+  savePref('mv.rlen', radialLen);
+  stRLen.value = radialLen;
+  stRLenVal.textContent = Math.round(radialLen*100) + '%';
+}
+stRLen.addEventListener('input', function(){ setRLen(+stRLen.value); });
+
+/* 波形：振幅 / 历史层数 / 对称比 */
+var waveAmp = loadPref('mv.wamp', 0.28);
+function setWAmp(v){
+  waveAmp = clampN(+v || 0.28, 0.1, 0.45);
+  savePref('mv.wamp', waveAmp);
+  stWAmp.value = waveAmp;
+  stWAmpVal.textContent = Math.round(waveAmp*100) + '%';
+}
+stWAmp.addEventListener('input', function(){ setWAmp(+stWAmp.value); });
+
+var waveHistN = loadPref('mv.whist', 7)|0;
+function setWHist(v){
+  waveHistN = clampN(Math.round(+v || 7), 1, 12);
+  savePref('mv.whist', waveHistN);
+  stWHist.value = waveHistN;
+  stWHistVal.textContent = waveHistN + ' 层';
+  while (waveHist.length > waveHistN) waveHist.pop();
+}
+stWHist.addEventListener('input', function(){ setWHist(+stWHist.value); });
+
+var waveSym = loadPref('mv.wsym', 0.8);
+function setWSym(v){
+  waveSym = clampN(+v || 0.8, 0.4, 1);
+  savePref('mv.wsym', waveSym);
+  stWSym.value = waveSym;
+  stWSymVal.textContent = Math.round(waveSym*100) + '%';
+}
+stWSym.addEventListener('input', function(){ setWSym(+stWSym.value); });
+
+/* 星云：流星数量 / 中心辉光 / 轨道环 */
+var burstN = loadPref('mv.burst', 26)|0;
+function setBurst(v){
+  burstN = clampN(Math.round(+v || 26), 0, 60);
+  savePref('mv.burst', burstN);
+  stBurst.value = burstN;
+  stBurstVal.textContent = burstN;
+}
+stBurst.addEventListener('input', function(){ setBurst(+stBurst.value); });
+
+var cGlowOn = loadPref('mv.cglow', 1) === 1;
+function setCGlow(on){
+  cGlowOn = !!on;
+  stCGlow.checked = cGlowOn;
+  savePref('mv.cglow', cGlowOn ? 1 : 0);
+}
+stCGlow.addEventListener('change', function(){ setCGlow(stCGlow.checked); });
+
+var ringsOn = loadPref('mv.rings', 1) === 1;
+function setRings(on){
+  ringsOn = !!on;
+  stRings.checked = ringsOn;
+  savePref('mv.rings', ringsOn ? 1 : 0);
+}
+stRings.addEventListener('change', function(){ setRings(stRings.checked); });
+
+/* 瀑布：下落速度 / 色彩 / 雾化 */
+var fallSpd = loadPref('mv.fspd', 1.5);
+function setFSpd(v){
+  fallSpd = clampN(+v || 1.5, 1, 6);
+  savePref('mv.fspd', fallSpd);
+  stFSpd.value = fallSpd;
+  stFSpdVal.textContent = '×' + fallSpd;
+}
+stFSpd.addEventListener('input', function(){ setFSpd(+stFSpd.value); });
+
+var fallColor = loadPref('mv.fcolor', 'theme');
+function setFColor(v){
+  fallColor = v === 'temp' ? 'temp' : 'theme';
+  savePref('mv.fcolor', fallColor);
+  stFColor.value = fallColor;
+  off = null; proOff = null; /* 重建瀑布底色 */
+}
+stFColor.addEventListener('change', function(){ setFColor(stFColor.value); });
+
+var fallFade = loadPref('mv.ffade', 0.22);
+function setFFade(v){
+  fallFade = clampN(+v || 0, 0, 0.4);
+  savePref('mv.ffade', fallFade);
+  stFFade.value = fallFade;
+  stFFadeVal.textContent = Math.round(fallFade*100) + '%';
+}
+stFFade.addEventListener('input', function(){ setFFade(+stFFade.value); });
+
+/* 可视化栏二级标签切换 */
+document.querySelectorAll('.viz-tab').forEach(function(t){
+  t.addEventListener('click', function(){
+    document.querySelectorAll('.viz-tab').forEach(function(x){ x.classList.remove('active'); });
+    document.querySelectorAll('.viz-sub').forEach(function(p){ p.classList.remove('active'); });
+    t.classList.add('active');
+    var sub = $(t.dataset.viz);
+    if (sub) sub.classList.add('active');
+  });
+});
+
 var dotAnim = loadPref('mv.dot', 1) === 1;
 function setDotAnim(on){
   dotAnim = !!on;
@@ -2611,6 +2911,20 @@ setRot(rotAmt);
 setOrb(orbCount);
 setSmooth(smoothAmt);
 setReflect(reflectOn);
+setBarW(barWidthPct);
+setRh(reflectH);
+setRotDir(String(rotDir));
+setR0(radialR0);
+setRLen(radialLen);
+setWAmp(waveAmp);
+setWHist(waveHistN);
+setWSym(waveSym);
+setBurst(burstN);
+setCGlow(cGlowOn);
+setRings(ringsOn);
+setFSpd(fallSpd);
+setFColor(fallColor);
+setFFade(fallFade);
 setDotAnim(dotAnim);
 setMarquee(marqueeOn);
 setIdle(idleDelay);
