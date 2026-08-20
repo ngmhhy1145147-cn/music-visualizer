@@ -27,16 +27,16 @@ glm5.3/
 │   ├── overlay-render.js      # 博主信息层的 canvas 绘制（导出视频用，复刻 DOM 版）
 │   ├── overlay-render.test.js # 上述模块的 Node 单元测试
 │   ├── video-export.js        # 视频渲染导出（WebCodecs GPU 编码 + ffmpeg.wasm 封装）
-│   └── ve.js                  # video-export.js 的缓存破解副本（index.html 引用的是它！改完必须同步）
+│   └── video-export.js        # 视频渲染导出（index.html 直接引用，已无 ve.js 副本）
 ├── vendor/                # ffmpeg.wasm 本地化文件（离线可用）
 │   ├── ffmpeg.js          # @ffmpeg/ffmpeg@0.12.15 UMD 主包（加载 814 chunk）
 │   ├── 814.ffmpeg.js      # webpack chunk（UMD 主包运行时会请求它，缺了必挂）
 │   ├── ffmpeg-core.js     # @ffmpeg/core@0.12.10
 │   └── ffmpeg-core.wasm   # 32MB wasm 核心
-└── 记忆.md                # 本文档
+└── DEVELOPMENT.md          # 本文档（原记忆.md，开源时改名）
 ```
 
-**⚠ 关键坑：`index.html` 引用 `js/ve.js` 而非 `js/video-export.js`**（为破解浏览器 JS 缓存曾物理改名）。修改导出逻辑后必须：`cp js/video-export.js js/ve.js && touch js/ve.js`。
+**ve.js 缓存破解副本已删除**（开源清理时移除），index.html 直接引用 `js/video-export.js`，无需同步。
 
 ---
 
@@ -152,7 +152,7 @@ startRender() 主流程（9 步）：
 ## 六、已知怪癖与经验教训
 
 0. **Pro 预设系统**：presetState('classic'/'pro')，renderers/renderersPro 两套渲染器数组；Shift+数字切换；桥接 getRenderer 自动跟随。Pro 环形=双层反向旋转+频段跳动点+发光；Pro 星云=频段轨道环+彗尾流星（与经典自由粒子完全不同）。⚠ Pro 环形必须保留经典的核心元素（内圈波形环+中心脉冲点），曾因丢失被用户批评"死板"。
-1. **浏览器 JS 缓存极顽固**：304/touch/换端口都未必生效；最终方案=物理改名（video-export.js→ve.js）。改导出代码后必须同步 ve.js。
+1. **浏览器 JS 缓存极顽固**（开发环境教训）：ZCode 内嵌浏览器曾需物理改名破解；正式浏览器 Ctrl+F5 即可。已无 ve.js 副本负担。
 2. **批处理文件编码**：中文 bat 必须 GBK+CRLF（`iconv -f UTF-8 -t GBK` + `sed -i 's/$/\r/'`），否则 cmd 按 GBK 解析 UTF-8 会劈碎命令。
 3. **ZCode 内嵌浏览器**：reload 后点击事件常失效（需关标签重开）；GPU 长时编码会挂渲染进程（真机 Chrome/Edge 无此问题）——在内嵌浏览器测出的"GPU 崩溃"结论不可信，教训深刻。
 4. **4K/120 H.264**：codec 字符串需 level 6.x（avc1.64003E=6.2）。低于此 level 的探测在 4K@120 会失败。
@@ -161,6 +161,15 @@ startRender() 主流程（9 步）：
 7. **切分辨率自动建议码率**：仅在当前值恰为某档默认值(4/8/12/35)时替换，不覆盖用户自定义值。
 
 ---
+
+## 6.5 近期功能（2026-08 晚期迭代，防遗漏）
+
+- **播放列表管理**：单曲删除 removeTrack(i)/上下移 moveTrack(i,dir)（renderPlaylist 内联按钮）；删除当前曲自动接播；清空 clearPlaylist；控制栏＋按钮（btn-add）与面板"＋添加"为常驻添加入口；添加后自动展开面板
+- **可视化二级设置**：p-viz 内 .viz-tabs（频谱/环形/波形/星云/瀑布五页）。模式专属参数：barWidthPct/reflectH/rotDir/radialR0/radialLen/waveAmp/waveHistN/waveSym/burstN/cGlowOn/ringsOn/fallSpd/fallColor/fallFade——渲染器直接读全局变量
+- **残影回叠**：beginFrame 内 setTransform(1,0,0,1,0,0) 后 1:1 物理拷贝 trailCv（曾因 dpr 变换导致残影被放大、拖尾方向乱偏——大坑勿回退）
+- **频谱高度无上限**：computeBands 的 clamp 只作用于 gamma 中间量 g，最终 bandsArr = g × sens（sens>1 有效；曾因 clamp 在乘 sens 之前导致灵敏度>1 无效）
+- **Pro 星云粒子（用户确认版）**：膨胀 0.8+v×2.2、三层光晕（4.2×/2.4×/核心）、能量>35% 白色过曝核、drift ±2% 微漂移、能量外推 0.12——改动前先读对话反馈，用户对粒子参数调过 4 轮
+- **拖尾方向**：见 6.5 残影回叠条目
 
 ## 七、测试方法
 
