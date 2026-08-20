@@ -99,7 +99,16 @@ button{font-family:inherit;color:inherit;background:none;border:none;cursor:poin
 }
 .pl-item:hover{background:rgba(255,255,255,.06);color:#fff;}
 .pl-item.active{background:rgba(255,255,255,.10);color:#fff;box-shadow:inset 2px 0 0 var(--accent);}
-.pl-name{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.pl-name{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;}
+/* 管理按钮组：hover 时滑入显示 */
+.pl-ops{display:flex;gap:2px;flex:none;opacity:0;transform:translateX(6px);transition:all .18s;}
+.pl-item:hover .pl-ops{opacity:1;transform:none;}
+.pl-op{
+  width:22px;height:22px;border-radius:6px;display:flex;align-items:center;justify-content:center;
+  color:#8b86a8;font-size:11px;flex:none;
+}
+.pl-op:hover{background:rgba(255,255,255,.12);color:#fff;}
+.pl-op.del:hover{background:rgba(244,63,94,.25);color:#fb7185;}
 .pl-eq{display:none;width:14px;height:13px;align-items:flex-end;gap:2px;flex:none;}
 .pl-item.active .pl-eq{display:flex;}
 .pl-eq i{
@@ -1741,6 +1750,8 @@ function addFiles(files){
   renderPlaylist();
   if (wasEmpty) playIndex(0);
   else toast('已添加 ' + list.length + ' 首');
+  /* 添加后自动展开列表面板（让用户立刻看到添加结果） */
+  if (tracks.length > 1) playlistEl.classList.add('open');
 }
 /* 释放曲目 blob URL（防止长期使用的内存累积；正在播放的除外，切换后由下次调用清理） */
 function revokeTrackUrls(){
@@ -1759,10 +1770,41 @@ function clearPlaylist(){
   }
   tracks.length = 0;
   current = -1;
-  try { localStorage.removeItem('mv.playlistNote'); } catch(e){}
   renderPlaylist();
   updateSongInfo();
   toast('播放列表已清空');
+}
+/* 从列表移除单曲（修正 current 指向，必要时无缝续播） */
+function removeTrack(i){
+  if (i < 0 || i >= tracks.length) return;
+  var wasCurrent = (i === current);
+  try { URL.revokeObjectURL(tracks[i].url); } catch (e) {}
+  tracks.splice(i, 1);
+  if (!tracks.length){                 /* 删空了 */
+    current = -1;
+    audio.pause();
+    audio.removeAttribute('src');
+    updateSongInfo();
+  } else if (wasCurrent){              /* 删的是正在播放的：自动播下一首（末尾则回到第一首） */
+    current = i >= tracks.length ? 0 : i;
+    playIndex(current);
+    return; /* playIndex 内部已 renderPlaylist */
+  } else if (i < current){             /* 删了前面的歌：current 左移，播放不中断 */
+    current--;
+  }
+  renderPlaylist();
+  updateSongInfo();
+}
+/* 上下移动排序（跟 current 保持同步，正在播放的歌不中断） */
+function moveTrack(i, dir){
+  var j = i + dir;
+  if (i < 0 || i >= tracks.length || j < 0 || j >= tracks.length) return;
+  var tmp = tracks[i];
+  tracks[i] = tracks[j];
+  tracks[j] = tmp;
+  if (current === i) current = j;
+  else if (current === j) current = i;
+  renderPlaylist();
 }
 function playIndex(i){
   if (i < 0 || i >= tracks.length) return;
@@ -1837,9 +1879,33 @@ function renderPlaylist(){
     (function(i){
       var el = document.createElement('div');
       el.className = 'pl-item' + (i === current ? ' active' : '');
-      el.innerHTML = '<span class="pl-eq"><i></i><i></i><i></i></span><span class="pl-name"></span>';
+      el.innerHTML = '<span class="pl-eq"><i></i><i></i><i></i></span><span class="pl-name"></span>' +
+        '<span class="pl-ops">' +
+          '<button class="pl-op up" title="上移">↑</button>' +
+          '<button class="pl-op down" title="下移">↓</button>' +
+          '<button class="pl-op del" title="从列表移除">✕</button>' +
+        '</span>';
       el.querySelector('.pl-name').textContent = tracks[i].name;
-      el.addEventListener('click', function(){ playIndex(i); });
+      el.addEventListener('click', function(ev){
+        if (ev.target.closest('.pl-op')) return; /* 管理按钮不触发播放 */
+        playIndex(i);
+      });
+      /* 上移/下移/删除（操作后保持播放状态正确） */
+      el.querySelector('.up').addEventListener('click', function(ev){
+        ev.stopPropagation();
+        moveTrack(i, -1);
+      });
+      el.querySelector('.down').addEventListener('click', function(ev){
+        ev.stopPropagation();
+        moveTrack(i, 1);
+      });
+      el.querySelector('.del').addEventListener('click', function(ev){
+        ev.stopPropagation();
+        removeTrack(i);
+      });
+      /* 首尾禁用对应按钮 */
+      if (i === 0) el.querySelector('.up').style.visibility = 'hidden';
+      if (i === tracks.length-1) el.querySelector('.down').style.visibility = 'hidden';
       plList.appendChild(el);
     })(i);
   }
@@ -2260,7 +2326,7 @@ function setBarStyle(v){
 }
 stBarStyle.addEventListener('change', function(){ setBarStyle(stBarStyle.value); });
 
-var autoOpenPl = loadPref('mv.autoopen', 0) === 1;
+var autoOpenPl = loadPref('mv.autoopen', 1) === 1;
 function setAutoOpen(on){
   autoOpenPl = !!on;
   stAutoOpen.checked = autoOpenPl;
